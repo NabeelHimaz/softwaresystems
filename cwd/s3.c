@@ -50,6 +50,8 @@ void child(char *args[], int argsc)
     ///Use execvp to load the binary 
     ///of the command specified in args[ARG_PROGNAME].
     ///For reference, see the code in lecture 3.
+
+    execvp(args[ARG_PROGNAME], args);
 }
 
 void launch_program(char *args[], int argsc)
@@ -64,4 +66,18 @@ void launch_program(char *args[], int argsc)
     ///Handle the 'exit' command;
     ///so that the shell, not the child process,
     ///exits.
+
+    int rc = fork();
+
+    if (rc < 0) { // fork failed; exit
+        fprintf(stderr, "fork failed\n");
+        exit(1);
+    } else if (rc == 0) { // child (new process)
+        printf("hello, I am child (pid: %d)\n", getpid());
+        child(args, argsc);
+        exit(1);
+    } else { // parent goes down this path (main)
+        //int wc = wait();
+        printf("hello, I am parent of %d (pid: %d)\n", rc, getpid());
+    }
 }
