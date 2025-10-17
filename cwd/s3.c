@@ -67,6 +67,10 @@ void launch_program(char *args[], int argsc)
     ///so that the shell, not the child process,
     ///exits.
 
+    if (strcmp(args[0], "exit") == 0) {
+        exit(0);  // Exit the shell itself
+    }
+
     int rc = fork();
 
     if (rc < 0) { // fork failed; exit
@@ -79,5 +83,6 @@ void launch_program(char *args[], int argsc)
     } else { // parent goes down this path (main)
         //int wc = wait();
         printf("hello, I am parent of %d (pid: %d)\n", rc, getpid());
+        int wc = wait(NULL);
     }
 }
