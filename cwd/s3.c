@@ -86,3 +86,11 @@ void launch_program(char *args[], int argsc)
         int wc = wait(NULL);
     }
 }
+
+bool command_with_redirection(char line[]){
+    return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
+}
+
+void lauch_program_with_redirection(char *args[], char argsc){
+
+}
