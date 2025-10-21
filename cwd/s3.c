@@ -68,29 +68,138 @@ void launch_program(char *args[], int argsc)
     ///exits.
 
     if (strcmp(args[0], "exit") == 0) {
-        exit(0);  // Exit the shell itself
+        exit(0);  
     }
 
     int rc = fork();
 
-    if (rc < 0) { // fork failed; exit
+    if (rc < 0) { 
         fprintf(stderr, "fork failed\n");
         exit(1);
-    } else if (rc == 0) { // child (new process)
+    } else if (rc == 0) { 
         printf("hello, I am child (pid: %d)\n", getpid());
         child(args, argsc);
         exit(1);
-    } else { // parent goes down this path (main)
-        //int wc = wait();
+    } else { 
         printf("hello, I am parent of %d (pid: %d)\n", rc, getpid());
         int wc = wait(NULL);
     }
 }
 
-bool command_with_redirection(char line[]){
+int command_with_redirection(char line[]){
     return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
 }
 
-void lauch_program_with_redirection(char *args[], char argsc){
+void launch_program_with_redirection(char *args[], int argsc){
+    if (strcmp(args[0], "exit") == 0) {
+        exit(0);  
+    }
 
+    int rc = fork();
+
+    if (rc < 0) { 
+        fprintf(stderr, "fork failed\n");
+        exit(1);
+    } else if (rc == 0) { 
+        printf("hello, I am child (pid: %d)\n", getpid());
+        child_with_redirection(args, argsc);
+        exit(1);
+    } else { 
+        printf("hello, I am parent of %d (pid: %d)\n", rc, getpid());
+        int wc = wait(NULL);
+    }
+}
+
+void child_with_redirection(char *args[], int argsc){
+    char *operator;
+    int op_index;
+    int redir_type;
+    
+    while ((redir_type = find_redirection_operator(args, argsc, &operator, &op_index)) != 0) {
+        
+        if (op_index + 1 >= argsc || args[op_index + 1] == NULL) {
+            fprintf(stderr, "Error: missing filename after %s\n", operator);
+            exit(EXIT_FAILURE);
+        }
+        
+        char *filename = args[op_index + 1];
+        
+        if (redir_type == 1) {
+            child_with_output_redirected(filename, 0);
+        } else if (redir_type == 2) {
+            child_with_output_redirected(filename, 1);
+        } else if (redir_type == 3) {
+            child_with_input_redirected(filename);
+        }
+        
+        args[op_index] = NULL;
+        argsc = op_index;
+    }
+    
+    if (execvp(args[0], args) < 0) {
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    }
+}
+
+int find_redirection_operator(char *args[], int argsc, char **operator, int *op_index) {
+    for (int i = 0; i < argsc; i++) {
+        if (strcmp(args[i], ">>") == 0) {
+            *operator = args[i];
+            *op_index = i;
+            return 2; 
+        } else if (strcmp(args[i], ">") == 0) {
+            *operator = args[i];
+            *op_index = i;
+            return 1; 
+        } else if (strcmp(args[i], "<") == 0) {
+            *operator = args[i];
+            *op_index = i;
+            return 3; 
+        }
+    }
+    return 0;
+}
+
+void child_with_output_redirected(char *filename, int append) {
+    int fd;
+    int flags = O_WRONLY | O_CREAT;
+    
+    if (append) {
+        flags |= O_APPEND;
+    } else {
+        flags |= O_TRUNC;
+    }
+    
+    fd = open(filename, flags, 0644);
+    if (fd < 0) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (dup2(fd, STDOUT_FILENO) < 0) {
+        perror("dup2");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    
+    close(fd);
+}
+
+void child_with_input_redirected(char *filename) {
+    int fd;
+    
+    fd = open(filename, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (dup2(fd, STDIN_FILENO) < 0) {
+        perror("dup2");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    
+    close(fd);
 }
