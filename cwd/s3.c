@@ -77,11 +77,9 @@ void launch_program(char *args[], int argsc)
         fprintf(stderr, "fork failed\n");
         exit(1);
     } else if (rc == 0) { 
-        printf("hello, I am child (pid: %d)\n", getpid());
         child(args, argsc);
         exit(1);
     } else { 
-        printf("hello, I am parent of %d (pid: %d)\n", rc, getpid());
         int wc = wait(NULL);
     }
 }
@@ -101,42 +99,70 @@ void launch_program_with_redirection(char *args[], int argsc){
         fprintf(stderr, "fork failed\n");
         exit(1);
     } else if (rc == 0) { 
-        printf("hello, I am child (pid: %d)\n", getpid());
         child_with_redirection(args, argsc);
         exit(1);
     } else { 
-        printf("hello, I am parent of %d (pid: %d)\n", rc, getpid());
         int wc = wait(NULL);
     }
 }
 
 void child_with_redirection(char *args[], int argsc){
-    char *operator;
-    int op_index;
-    int redir_type;
+    // Variables to track redirection
+    char *input_file = NULL;
+    char *output_file = NULL;
+    int append_mode = 0;
+    char *cmd_args[MAX_ARGS];
+    int cmd_argc = 0;
     
-    while ((redir_type = find_redirection_operator(args, argsc, &operator, &op_index)) != 0) {
-        
-        if (op_index + 1 >= argsc || args[op_index + 1] == NULL) {
-            fprintf(stderr, "Error: missing filename after %s\n", operator);
-            exit(EXIT_FAILURE);
+    // collect redirection info
+    for (int i = 0; i < argsc; i++) {
+        if (strcmp(args[i], "<") == 0) {
+            if (i + 1 >= argsc || args[i + 1] == NULL) {
+                fprintf(stderr, "Error: missing filename after '<'\n");
+                exit(EXIT_FAILURE);
+            }
+            input_file = args[i + 1];
+            i++;  // Skip filename
+            
+        } else if (strcmp(args[i], ">>") == 0) {
+            if (i + 1 >= argsc || args[i + 1] == NULL) {
+                fprintf(stderr, "Error: missing filename after '>>'\n");
+                exit(EXIT_FAILURE);
+            }
+            output_file = args[i + 1];
+            append_mode = 1;
+            i++;
+            
+        } else if (strcmp(args[i], ">") == 0) {
+            if (i + 1 >= argsc || args[i + 1] == NULL) {
+                fprintf(stderr, "Error: missing filename after '>'\n");
+                exit(EXIT_FAILURE);
+            }
+            output_file = args[i + 1];
+            append_mode = 0;
+            i++;
+            
+        } else {
+            // Regular argument
+            cmd_args[cmd_argc++] = args[i];
         }
-        
-        char *filename = args[op_index + 1];
-        
-        if (redir_type == 1) {
-            child_with_output_redirected(filename, 0);
-        } else if (redir_type == 2) {
-            child_with_output_redirected(filename, 1);
-        } else if (redir_type == 3) {
-            child_with_input_redirected(filename);
-        }
-        
-        args[op_index] = NULL;
-        argsc = op_index;
     }
     
-    if (execvp(args[0], args) < 0) {
+    // NULL-terminate the cleaned args
+    cmd_args[cmd_argc] = NULL;
+    
+    // Apply input redirection if specified
+    if (input_file != NULL) {
+        child_with_input_redirected(input_file);
+    }
+    
+    // Apply output redirection if specified
+    if (output_file != NULL) {
+        child_with_output_redirected(output_file, append_mode);
+    }
+    
+    // Execute with cleaned args
+    if (execvp(cmd_args[0], cmd_args) < 0) {
         perror("execvp");
         exit(EXIT_FAILURE);
     }
