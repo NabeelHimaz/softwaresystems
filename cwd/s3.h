@@ -45,7 +45,6 @@ void launch_program_with_redirection(char *args[], int argsc);
 void child_with_redirection(char *args[], int argsc);
 void child_with_input_redirected(char *filename);
 void child_with_output_redirected(char *filename, int append);
-int find_redirection_operator(char *args[], int argsc, char **operator, int *op_index);
 
 
 ///Child functions (add more as appropriate)
