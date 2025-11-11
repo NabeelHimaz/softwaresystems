@@ -50,13 +50,7 @@ void parse_command(char line[], char *args[], int *argsc)
     args[*argsc] = NULL; ///args must be null terminated
 }
 
-int command_with_redirection(char line[])
-{
-    return (strstr(line, " > ") != NULL) ||
-           (strstr(line, " >> ") != NULL) ||
-           (strstr(line, " < ") != NULL);
 
-}
 
 
 // Assuming redirections are in the line:
@@ -110,22 +104,7 @@ void child(char *args[], int argsc)
     execvp(args[ARG_PROGNAME], args);
 }
 
-void child_with_input_redirected(const char *infile)
-{
-    int fd = open(infile, O_RDONLY);
-    if (fd < 0) { perror("open infile"); _exit(1); }
-    if (dup2(fd, STDIN_FILENO) < 0) { perror("dup2 stdin"); _exit(1); }
-    close(fd);
-}
 
-void child_with_output_redirected(const char *outfile, int append)
-{
-    int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
-    int fd = open(outfile, flags, 0644);
-    if (fd < 0) { perror("open outfile"); _exit(1); }
-    if (dup2(fd, STDOUT_FILENO) < 0) { perror("dup2 stdout"); _exit(1); }
-    close(fd);
-}
 
 
 int cd_implementation(char *args[], int argsc) {
@@ -187,36 +166,36 @@ int cd_implementation(char *args[], int argsc) {
 
 
 
-void launch_program_with_redirection(char *args[], int argsc)
-{
-    char *infile = NULL, *outfile = NULL;
-    int append = 0;
+// void launch_program_with_redirection(char *args[], int argsc)
+// {
+//     char *infile = NULL, *outfile = NULL;
+//     int append = 0;
 
-    if (parse_redirections(args, &argsc, &infile, &outfile, &append) < 0) {
-        return; // syntax error already printed
-    }
+//     if (parse_redirections(args, &argsc, &infile, &outfile, &append) < 0) {
+//         return; // syntax error already printed
+//     }
 
-    if (argsc > 0 && strcmp(args[0], "exit") == 0) {
-        exit(0);
-    }
+//     if (argsc > 0 && strcmp(args[0], "exit") == 0) {
+//         exit(0);
+//     }
 
-    int rc = fork();
-    if (rc < 0) {
-        perror("fork");
-        return;
-    } else if (rc == 0) {
-        // child: apply requested redirections first
-        if (infile)  child_with_input_redirected(infile);
-        if (outfile) child_with_output_redirected(outfile, append);
-        // then exec
-        execvp(args[0], args);
-        perror("execvp");
-        _exit(127);
-    } else {
-        // parent: do NOT wait here; main() will reap()
-        return;
-    }
-}
+//     int rc = fork();
+//     if (rc < 0) {
+//         perror("fork");
+//         return;
+//     } else if (rc == 0) {
+//         // child: apply requested redirections first
+//         if (infile)  child_with_input_redirected(infile);
+//         if (outfile) child_with_output_redirected(outfile, append);
+//         // then exec
+//         execvp(args[0], args);
+//         perror("execvp");
+//         _exit(127);
+//     } else {
+//         // parent: do NOT wait here; main() will reap()
+//         return;
+//     }
+// }
 
 
 
@@ -241,6 +220,12 @@ void launch_program(char *args[], int argsc)
         exit(0);  
     }
 
+    
+    if (argsc > 0 && strcmp(args[0], "cd") == 0) {
+        cd_implementation(args, argsc);   
+        return;
+    }
+
     int rc = fork();
 
     if(rc < 0){ 
@@ -256,29 +241,50 @@ void launch_program(char *args[], int argsc)
     }
 }
 
-int command_with_redirection(char line[]){
-    return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
+void child_with_output_redirected(const char *filename, int append){
+    int fd;
+    int flags = O_WRONLY | O_CREAT;
+    
+    if(append){
+        flags |= O_APPEND;
+    } 
+    else{
+        flags |= O_TRUNC;
+    }
+    
+    fd = open(filename, flags, 0644);
+    if(fd < 0){
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    
+    if(dup2(fd, STDOUT_FILENO) < 0){
+        perror("dup2");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    
+    close(fd);
 }
 
-void launch_program_with_redirection(char *args[], int argsc){
-    if(strcmp(args[0], "exit") == 0) {
-        exit(0);  
+void child_with_input_redirected(const char *filename){
+    int fd;
+    
+    fd = open(filename, O_RDONLY); //open the file
+    if(fd < 0){
+        perror("open");
+        exit(EXIT_FAILURE);
     }
-
-    int rc = fork();
-
-    if(rc < 0) { 
-        fprintf(stderr, "fork failed\n");
-        exit(1);
-    } 
-    else if(rc == 0){ 
-        child_with_redirection(args, argsc);
-        exit(1);
-    } 
-    else{ 
-        int wc = wait(NULL);
+    
+    if(dup2(fd, STDIN_FILENO) < 0){ //redirects fd as the input intead of the keyboard
+        perror("dup2");
+        close(fd);
+        exit(EXIT_FAILURE);
     }
+    
+    close(fd);
 }
+
 
 void child_with_redirection(char *args[], int argsc){
     // variables to track redirection
@@ -346,46 +352,31 @@ void child_with_redirection(char *args[], int argsc){
     }
 }
 
-void child_with_output_redirected(char *filename, int append){
-    int fd;
-    int flags = O_WRONLY | O_CREAT;
-    
-    if(append){
-        flags |= O_APPEND;
-    } 
-    else{
-        flags |= O_TRUNC;
-    }
-    
-    fd = open(filename, flags, 0644);
-    if(fd < 0){
-        perror("open");
-        exit(EXIT_FAILURE);
-    }
-    
-    if(dup2(fd, STDOUT_FILENO) < 0){
-        perror("dup2");
-        close(fd);
-        exit(EXIT_FAILURE);
-    }
-    
-    close(fd);
+
+
+
+int command_with_redirection(char line[]){
+    return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
 }
 
-void child_with_input_redirected(char *filename){
-    int fd;
-    
-    fd = open(filename, O_RDONLY); //open the file
-    if(fd < 0){
-        perror("open");
-        exit(EXIT_FAILURE);
+void launch_program_with_redirection(char *args[], int argsc){
+    if(strcmp(args[0], "exit") == 0) {
+        exit(0);  
     }
-    
-    if(dup2(fd, STDIN_FILENO) < 0){ //redirects fd as the input intead of the keyboard
-        perror("dup2");
-        close(fd);
-        exit(EXIT_FAILURE);
+
+    int rc = fork();
+
+    if(rc < 0) { 
+        fprintf(stderr, "fork failed\n");
+        exit(1);
+    } 
+    else if(rc == 0){ 
+        child_with_redirection(args, argsc);
+        exit(1);
+    } 
+    else{ 
+        int wc = wait(NULL);
     }
-    
-    close(fd);
 }
+
+

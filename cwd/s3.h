@@ -43,25 +43,23 @@ void read_command_line(char line[]);
 void construct_shell_prompt(char shell_prompt[]);
 void parse_command(char line[], char *args[], int *argsc);
 
-//Functions for Commands with redirection:
-int command_with_redirection(char line[]);
-void launch_program_with_redirection(char *args[], int argsc);
-void child_with_redirection(char *args[], int argsc);
-void child_with_input_redirected(char *filename);
-void child_with_output_redirected(char *filename, int append);
-
 
 ///Child functions (add more as appropriate)
 void child(char *args[], int argsc);
+void child_with_input_redirected(const char *infile);
+void child_with_output_redirected(const char *outfile, int append);
 
 ///Program launching functions (add more as appropriate)
 void launch_program(char *args[], int argsc);
 void launch_program_with_redirection(char *args[], int argsc);
-void child_with_input_redirected(const char *infile);
-void child_with_output_redirected(const char *outfile, int append);
+
+//implements cd 
+int cd_implementation(char *args[], int argsc);
+
 
 /// Checks if there's a command with a redirection 
 int command_with_redirection(char line[]);  // returns 1 if <, >, or >> appears
 
 
 #endif
+
