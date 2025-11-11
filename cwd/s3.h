@@ -43,6 +43,14 @@ void read_command_line(char line[]);
 void construct_shell_prompt(char shell_prompt[]);
 void parse_command(char line[], char *args[], int *argsc);
 
+//Functions for Commands with redirection:
+int command_with_redirection(char line[]);
+void launch_program_with_redirection(char *args[], int argsc);
+void child_with_redirection(char *args[], int argsc);
+void child_with_input_redirected(char *filename);
+void child_with_output_redirected(char *filename, int append);
+
+
 ///Child functions (add more as appropriate)
 void child(char *args[], int argsc);
 

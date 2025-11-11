@@ -237,27 +237,155 @@ void launch_program(char *args[], int argsc)
     ///so that the shell, not the child process,
     ///exits.
 
-    if (strcmp(args[0], "exit") == 0) {
-        exit(0);  // Exit the shell itself
-    }
-
-
-    if (argsc > 0 && strcmp(args[0], "cd") == 0) {
-        cd_implementation(args, argsc);   // run in parent, no fork
-        return;
+    if(strcmp(args[0], "exit") == 0){
+        exit(0);  
     }
 
     int rc = fork();
 
-    if (rc < 0) { // fork failed; exit
+    if(rc < 0){ 
         fprintf(stderr, "fork failed\n");
         exit(1);
-    } else if (rc == 0) { // child (new process)
-        
+    } 
+    else if(rc == 0){ 
         child(args, argsc);
         exit(1);
-    } else { // parent goes down this path (main)
-        //int wc = wait();
-        return;
+    } 
+    else{ 
+        int wc = wait(NULL);
     }
+}
+
+int command_with_redirection(char line[]){
+    return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
+}
+
+void launch_program_with_redirection(char *args[], int argsc){
+    if(strcmp(args[0], "exit") == 0) {
+        exit(0);  
+    }
+
+    int rc = fork();
+
+    if(rc < 0) { 
+        fprintf(stderr, "fork failed\n");
+        exit(1);
+    } 
+    else if(rc == 0){ 
+        child_with_redirection(args, argsc);
+        exit(1);
+    } 
+    else{ 
+        int wc = wait(NULL);
+    }
+}
+
+void child_with_redirection(char *args[], int argsc){
+    // variables to track redirection
+    char *input_file = NULL;
+    char *output_file = NULL;
+    int append_mode = 0;
+    char *cmd_args[MAX_ARGS];
+    int cmd_argc = 0;
+    
+    // collect redirection info
+    for(int i = 0; i < argsc; i++){
+        if(strcmp(args[i], "<") == 0){
+            if (i + 1 >= argsc || args[i + 1] == NULL){
+                fprintf(stderr, "Error: missing filename after '<'\n");
+                exit(EXIT_FAILURE);
+            }
+            input_file = args[i + 1]; //stores file name
+            i++;  // skip filename
+            
+        } 
+        else if(strcmp(args[i], ">>") == 0){
+            if(i + 1 >= argsc || args[i + 1] == NULL){
+                fprintf(stderr, "Error: missing filename after '>>'\n");
+                exit(EXIT_FAILURE);
+            }
+            output_file = args[i + 1];
+            append_mode = 1;
+            i++;
+            
+        } 
+        else if(strcmp(args[i], ">") == 0){
+            if(i + 1 >= argsc || args[i + 1] == NULL){
+                fprintf(stderr, "Error: missing filename after '>'\n");
+                exit(EXIT_FAILURE);
+            }
+            output_file = args[i + 1];
+            append_mode = 0;
+            i++;
+            
+        } 
+        else{
+            cmd_args[cmd_argc++] = args[i]; //store args 
+        }
+    }
+    
+
+    //apply all redirections
+    // NULL-terminate the cleaned args
+    cmd_args[cmd_argc] = NULL;
+    
+    // Apply input redirection if specified
+    if(input_file != NULL){
+        child_with_input_redirected(input_file);
+    }
+    
+    // Apply output redirection if specified
+    if(output_file != NULL){
+        child_with_output_redirected(output_file, append_mode);
+    }
+    
+    // Execute
+    if(execvp(cmd_args[0], cmd_args) < 0){
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void child_with_output_redirected(char *filename, int append){
+    int fd;
+    int flags = O_WRONLY | O_CREAT;
+    
+    if(append){
+        flags |= O_APPEND;
+    } 
+    else{
+        flags |= O_TRUNC;
+    }
+    
+    fd = open(filename, flags, 0644);
+    if(fd < 0){
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    
+    if(dup2(fd, STDOUT_FILENO) < 0){
+        perror("dup2");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    
+    close(fd);
+}
+
+void child_with_input_redirected(char *filename){
+    int fd;
+    
+    fd = open(filename, O_RDONLY); //open the file
+    if(fd < 0){
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    
+    if(dup2(fd, STDIN_FILENO) < 0){ //redirects fd as the input intead of the keyboard
+        perror("dup2");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    
+    close(fd);
 }
