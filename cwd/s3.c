@@ -59,7 +59,9 @@ int command_with_redirection(char line[])
 }
 
 
-// Returns 0 on success, -1 on syntax error (e.g., missing filename)
+// Assuming redirections are in the line:
+// Parse through the line 
+//Return 0 for success, -1 on error 
 int parse_redirections(char *args[], int *argsc,
                        char **infile, char **outfile, int *append)
 {
@@ -198,7 +200,7 @@ void launch_program_with_redirection(char *args[], int argsc)
         exit(0);
     }
 
-    pid_t rc = fork();
+    int rc = fork();
     if (rc < 0) {
         perror("fork");
         return;
