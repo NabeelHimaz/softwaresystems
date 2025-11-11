@@ -10,6 +10,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <stdbool.h>
+#include <limits.h>
+
 
 ///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
@@ -44,4 +47,12 @@ void child(char *args[], int argsc);
 
 ///Program launching functions (add more as appropriate)
 void launch_program(char *args[], int argsc);
+void launch_program_with_redirection(char *args[], int argsc);
+void child_with_input_redirected(const char *infile);
+void child_with_output_redirected(const char *outfile, int append);
+
+/// Checks if there's a command with a redirection 
+int command_with_redirection(char line[]);  // returns 1 if <, >, or >> appears
+
+
 #endif
