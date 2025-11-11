@@ -219,3 +219,60 @@ void child_with_input_redirected(char *filename){
     
     close(fd);
 }
+
+int batched_command(char line[]){
+    return (strchr(line, ';') != NULL);
+}
+
+void execute_batched_commands(char line[]){
+    char line_copy[MAX_LINE];
+    strcpy(line_copy, line);
+    
+    // seperate commands by semicolon
+    char *command = strtok(line_copy, ";");
+    
+    while(command != NULL){
+        //ignore whitespace*
+        while(*command == ' '){
+            command++;
+        }
+        
+        // Skip empty commands
+        if(strlen(command) == 0){
+            command = strtok(NULL, ";");
+            continue;
+        }
+        
+        // Parse and execute this command
+        char *args[MAX_ARGS];
+        int argsc;
+        
+        char cmd_copy[MAX_LINE];
+        strcpy(cmd_copy, command);
+        
+        // Check for pipes 
+        parse_command(cmd_copy, args, &argsc);
+        
+        if (argsc == 0) {
+            command = strtok(NULL, ";");
+            continue;
+        }
+        
+        //Implement pipes
+
+
+
+
+        //check for redirection
+        else if (command_with_redirection(command)) {
+            launch_program_with_redirection(args, argsc);
+            reap();
+        }
+        else {
+            launch_program(args, argsc);
+            reap();
+        }
+        
+        command = strtok(NULL, ";");
+    }
+}

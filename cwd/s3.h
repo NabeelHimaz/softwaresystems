@@ -46,6 +46,9 @@ void child_with_redirection(char *args[], int argsc);
 void child_with_input_redirected(char *filename);
 void child_with_output_redirected(char *filename, int append);
 
+//Funtions for Batched Commands
+int batched_command(char line[]);
+void execute_batched_commands(char line[]);
 
 ///Child functions (add more as appropriate)
 void child(char *args[], int argsc);
