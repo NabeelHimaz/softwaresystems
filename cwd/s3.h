@@ -52,13 +52,17 @@ void child_with_output_redirected(const char *outfile, int append);
 ///Program launching functions (add more as appropriate)
 void launch_program(char *args[], int argsc);
 void launch_program_with_redirection(char *args[], int argsc);
+void execute_pipeline(char *args[], int argsc);
 
 //implements cd 
 int cd_implementation(char *args[], int argsc);
 
+//helper for pipes
+int count_pipes(char *args[], int argsc);
 
-/// Checks if there's a command with a redirection 
+/// Checks if there's a command with a redirection/ pipes
 int command_with_redirection(char line[]);  // returns 1 if <, >, or >> appears
+int command_with_pipe(char line[]);
 
 
 #endif

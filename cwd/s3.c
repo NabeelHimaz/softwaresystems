@@ -113,7 +113,7 @@ int cd_implementation(char *args[], int argsc) {
     char cwd[MAX_LINE];
 
 
-    //gets current working directory and stores it in cwd/ returns an error if it can't access
+    //gets current working directory and stores it in cwd returns an error if it can't access
     if (!getcwd(cwd, sizeof(cwd))) {
         perror("getcwd");
     }
@@ -164,45 +164,6 @@ int cd_implementation(char *args[], int argsc) {
 
 
 
-
-
-// void launch_program_with_redirection(char *args[], int argsc)
-// {
-//     char *infile = NULL, *outfile = NULL;
-//     int append = 0;
-
-//     if (parse_redirections(args, &argsc, &infile, &outfile, &append) < 0) {
-//         return; // syntax error already printed
-//     }
-
-//     if (argsc > 0 && strcmp(args[0], "exit") == 0) {
-//         exit(0);
-//     }
-
-//     int rc = fork();
-//     if (rc < 0) {
-//         perror("fork");
-//         return;
-//     } else if (rc == 0) {
-//         // child: apply requested redirections first
-//         if (infile)  child_with_input_redirected(infile);
-//         if (outfile) child_with_output_redirected(outfile, append);
-//         // then exec
-//         execvp(args[0], args);
-//         perror("execvp");
-//         _exit(127);
-//     } else {
-//         // parent: do NOT wait here; main() will reap()
-//         return;
-//     }
-// }
-
-
-
-
-
-
-
 void launch_program(char *args[], int argsc)
 {
     ///Implement this function:
@@ -226,7 +187,7 @@ void launch_program(char *args[], int argsc)
         return;
     }
 
-    int rc = fork();
+    pid_t rc = fork();
 
     if(rc < 0){ 
         fprintf(stderr, "fork failed\n");
@@ -364,7 +325,7 @@ void launch_program_with_redirection(char *args[], int argsc){
         exit(0);  
     }
 
-    int rc = fork();
+    pid_t rc = fork();
 
     if(rc < 0) { 
         fprintf(stderr, "fork failed\n");
@@ -380,3 +341,148 @@ void launch_program_with_redirection(char *args[], int argsc){
 }
 
 
+int command_with_pipe(char line[]){
+    return (strchr(line, '|') != NULL);
+}
+
+int count_pipes(char *args[], int argsc){
+    
+    int count = 0;
+    for (int i=0; i < argsc; i++){
+        if(strcmp(args[i], "|") == 0){
+            count ++;
+        }
+    }
+
+    return count;
+}
+
+static int stage_is_empty(char *stagev[]) {
+    return (stagev == NULL || stagev[0] == NULL);
+}
+
+
+void execute_pipeline(char *args[], int argsc){
+    int num_pipes = count_pipes(args, argsc);
+    int num_commands = num_pipes + 1;
+
+    // Create pipes (if any). If num_pipes == 0 this loop is skipped
+    int pipe_fds[2 * (num_pipes > 0 ? num_pipes : 1)];
+    if (num_pipes > 0) {
+        for(int i = 0; i < num_pipes; i++){
+            if(pipe(pipe_fds + (i * 2)) < 0){
+                perror("pipe");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    /* Build per-stage argv arrays. Initialize to NULL. */
+    char *commands[num_commands][MAX_ARGS];
+    memset(commands, 0, sizeof(commands));
+    int cmd_lens[num_commands];
+    int cmd_index = 0;
+    int arg_index = 0;
+
+    for (int i = 0; i < argsc; i++) {
+        if (strcmp(args[i], "|") == 0) {
+            commands[cmd_index][arg_index] = NULL;
+            cmd_lens[cmd_index] = arg_index;
+            cmd_index++;
+            arg_index = 0;
+        } else {
+            commands[cmd_index][arg_index++] = args[i];
+        }
+    }
+
+    /* terminate last command */
+    commands[cmd_index][arg_index] = NULL;
+    cmd_lens[cmd_index] = arg_index;
+
+    /* Fork a process for each command and wire up pipes + redirections.
+       We reuse the existing child/redirection helpers (which perform exec)
+       rather than calling the higher-level launch_* functions that themselves
+       fork — we are already in the per-stage child here. */
+    for (int i = 0; i < num_commands; i++) {
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
+
+        if (pid == 0) {  /* child */
+            /* If not the first command, read from previous pipe */
+            if (i > 0 && num_pipes > 0) {
+                if (dup2(pipe_fds[(i - 1) * 2], STDIN_FILENO) < 0) {
+                    perror("dup2");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            /* If not the last command, write to next pipe */
+            if (i < num_commands - 1 && num_pipes > 0) {
+                if (dup2(pipe_fds[i * 2 + 1], STDOUT_FILENO) < 0) {
+                    perror("dup2");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            /* Close all pipe fds in child */
+            if (num_pipes > 0) {
+                for (int j = 0; j < num_pipes * 2; j++) close(pipe_fds[j]);
+            }
+
+            /* Handle redirections for this stage. parse_redirections will
+               compact the argv and return infile/outfile if present. */
+            char *infile = NULL;
+            char *outfile = NULL;
+            int append = 0;
+            int this_argc = cmd_lens[i];
+
+            if (this_argc > 0) {
+                if (parse_redirections(commands[i], &this_argc, &infile, &outfile, &append) < 0) {
+                    
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            // If input redirection specified for this stage, apply it. 
+            if (infile != NULL) {
+                child_with_input_redirected(infile);
+            }
+
+            // If output redirection specified for this stage, apply it. 
+            if (outfile != NULL) {
+                child_with_output_redirected(outfile, append);
+            }
+
+            // Nothing to execute? just exit child. 
+            if (commands[i][0] == NULL) {
+                exit(EXIT_SUCCESS);
+            }
+
+            // Exec the command for this stage.
+            execvp(commands[i][0], commands[i]);
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+        /* parent continues to create next stage */
+    }
+
+    /* Parent closes all pipe file descriptors */
+    if (num_pipes > 0) {
+        for (int i = 0; i < num_pipes * 2; i++) close(pipe_fds[i]);
+    }
+
+    // Wait for all children 
+    for (int i = 0; i < num_commands; i++) wait(NULL);
+}
+
+
+
+//Write a function to tokenize the piped commands (each of which can then be parsed).
+//Write a function to launch the piped commands. In this function, try to reuse the functions you have already written 
+//namely, launch_program, launch_program_with_redirection, child, and child_with_redirection, etc.
+//The above-mentioned functions would need to be augmented, with extra arguments related to the pipelining functionality
+// added to them. These arguments may be set to NULL or 0 when passed in the non-pipelined cases. 
+//This is a standard practice in C, which does not allow default argument values or function overloading.
