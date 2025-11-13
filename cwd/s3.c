@@ -1,4 +1,6 @@
 #include "s3.h"
+#include "s3.h"
+#include <ctype.h>
 
 ///Simple for now, but will be expanded in a following section
 void construct_shell_prompt(char shell_prompt[])
@@ -38,7 +40,6 @@ void parse_command(char line[], char *args[], int *argsc)
     ///to split it into logical cstrings.
     ///There is no dynamic allocation.
 
-    ///See the man page of strtok(...)
     char *token = strtok(line, " ");
     *argsc = 0;
     while (token != NULL && *argsc < MAX_ARGS - 1)
@@ -46,11 +47,8 @@ void parse_command(char line[], char *args[], int *argsc)
         args[(*argsc)++] = token;
         token = strtok(NULL, " ");
     }
-    
     args[*argsc] = NULL; ///args must be null terminated
 }
-
-
 
 
 // Assuming redirections are in the line:
@@ -73,7 +71,7 @@ int parse_redirections(char *args[], int *argsc,
         } else if (strcmp(args[r], ">>") == 0) {
             if (r + 1 >= *argsc) { fprintf(stderr, "syntax error: missing output file\n"); return -1; }
             *outfile = args[r + 1];
-            *append = 1;                  // <<<<<< set append when using >>
+            *append = 1;                  // append when using >>
             r++; // skip filename
         } else if (strcmp(args[r], ">") == 0) {
             if (r + 1 >= *argsc) { fprintf(stderr, "syntax error: missing output file\n"); return -1; }
@@ -95,25 +93,20 @@ int parse_redirections(char *args[], int *argsc,
 ///Launch related functions
 void child(char *args[], int argsc)
 {
-    ///Implement this function:
-
-    ///Use execvp to load the binary 
-    ///of the command specified in args[ARG_PROGNAME].
-    ///For reference, see the code in lecture 3.
-
+    ///Use execvp to load the binary specified in args[ARG_PROGNAME].
     execvp(args[ARG_PROGNAME], args);
+    /* If execvp returns, it's an error */
+    perror("execvp");
+    exit(EXIT_FAILURE);
 }
-
-
 
 
 int cd_implementation(char *args[], int argsc) {
 
-    char prev_dir[MAX_LINE] = "";
+    static char prev_dir[MAX_LINE] = ""; // static so persists between calls
     char cwd[MAX_LINE];
 
-
-    //gets current working directory and stores it in cwd returns an error if it can't access
+    //gets current working directory and stores it in cwd
     if (!getcwd(cwd, sizeof(cwd))) {
         perror("getcwd");
     }
@@ -163,25 +156,14 @@ int cd_implementation(char *args[], int argsc) {
 }
 
 
-
 void launch_program(char *args[], int argsc)
 {
-    ///Implement this function:
-
-    ///fork() a child process.
-    ///In the child part of the code,
-    ///call child(args, argv)
-    ///For reference, see the code in lecture 2.
-
-    ///Handle the 'exit' command;
-    ///so that the shell, not the child process,
-    ///exits.
+    if (argsc <= 0 || args[0] == NULL) return;
 
     if(strcmp(args[0], "exit") == 0){
         exit(0);  
     }
 
-    
     if (argsc > 0 && strcmp(args[0], "cd") == 0) {
         cd_implementation(args, argsc);   
         return;
@@ -190,15 +172,18 @@ void launch_program(char *args[], int argsc)
     pid_t rc = fork();
 
     if(rc < 0){ 
-        fprintf(stderr, "fork failed\n");
-        exit(1);
+        perror("fork");
+        return;
     } 
     else if(rc == 0){ 
+        /* child */
         child(args, argsc);
-        exit(1);
+        /* child should not return */
+        exit(EXIT_FAILURE);
     } 
     else{ 
-        int wc = wait(NULL);
+        /* parent waits for child */
+        wait(NULL);
     }
 }
 
@@ -307,6 +292,9 @@ void child_with_redirection(char *args[], int argsc){
     }
     
     // Execute
+    if(cmd_args[0] == NULL){
+        exit(EXIT_SUCCESS);
+    }
     if(execvp(cmd_args[0], cmd_args) < 0){
         perror("execvp");
         exit(EXIT_FAILURE);
@@ -314,13 +302,12 @@ void child_with_redirection(char *args[], int argsc){
 }
 
 
-
-
 int command_with_redirection(char line[]){
     return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
 }
 
 void launch_program_with_redirection(char *args[], int argsc){
+    if(argsc <= 0 || args[0] == NULL) return;
     if(strcmp(args[0], "exit") == 0) {
         exit(0);  
     }
@@ -328,15 +315,15 @@ void launch_program_with_redirection(char *args[], int argsc){
     pid_t rc = fork();
 
     if(rc < 0) { 
-        fprintf(stderr, "fork failed\n");
-        exit(1);
+        perror("fork");
+        return;
     } 
     else if(rc == 0){ 
         child_with_redirection(args, argsc);
-        exit(1);
+        exit(EXIT_FAILURE);
     } 
     else{ 
-        int wc = wait(NULL);
+        wait(NULL);
     }
 }
 
@@ -366,7 +353,7 @@ void execute_pipeline(char *args[], int argsc){
     int num_pipes = count_pipes(args, argsc);
     int num_commands = num_pipes + 1;
 
-    // Create pipes (if any). If num_pipes == 0 this loop is skipped
+    /* Create pipes (if any). If num_pipes == 0 this loop is skipped. */
     int pipe_fds[2 * (num_pipes > 0 ? num_pipes : 1)];
     if (num_pipes > 0) {
         for(int i = 0; i < num_pipes; i++){
@@ -441,27 +428,27 @@ void execute_pipeline(char *args[], int argsc){
 
             if (this_argc > 0) {
                 if (parse_redirections(commands[i], &this_argc, &infile, &outfile, &append) < 0) {
-                    
+                    /* syntax error already printed by parse_redirections */
                     exit(EXIT_FAILURE);
                 }
             }
 
-            // If input redirection specified for this stage, apply it. 
+            /* If input redirection specified for this stage, apply it. */
             if (infile != NULL) {
                 child_with_input_redirected(infile);
             }
 
-            // If output redirection specified for this stage, apply it. 
+            /* If output redirection specified for this stage, apply it. */
             if (outfile != NULL) {
                 child_with_output_redirected(outfile, append);
             }
 
-            // Nothing to execute? just exit child. 
+            /* Nothing to execute? just exit child. */
             if (commands[i][0] == NULL) {
                 exit(EXIT_SUCCESS);
             }
 
-            // Exec the command for this stage.
+            /* Exec the command for this stage. */
             execvp(commands[i][0], commands[i]);
             perror("execvp");
             exit(EXIT_FAILURE);
@@ -474,15 +461,62 @@ void execute_pipeline(char *args[], int argsc){
         for (int i = 0; i < num_pipes * 2; i++) close(pipe_fds[i]);
     }
 
-    // Wait for all children 
+    /* Wait for all children */
     for (int i = 0; i < num_commands; i++) wait(NULL);
 }
 
 
+int has_batched_command(char line[]){
+    return (strchr(line, ';') != NULL);
 
-//Write a function to tokenize the piped commands (each of which can then be parsed).
-//Write a function to launch the piped commands. In this function, try to reuse the functions you have already written 
-//namely, launch_program, launch_program_with_redirection, child, and child_with_redirection, etc.
-//The above-mentioned functions would need to be augmented, with extra arguments related to the pipelining functionality
-// added to them. These arguments may be set to NULL or 0 when passed in the non-pipelined cases. 
-//This is a standard practice in C, which does not allow default argument values or function overloading.
+}
+
+void execute_batched_commands(char line[]){
+    char line_copy[MAX_LINE];
+    strncpy(line_copy, line, sizeof(line_copy)-1);
+    line_copy[sizeof(line_copy)-1] = '\0';
+
+    // separate commands by semicolon 
+    char *saveptr = NULL;
+    char *command = strtok_r(line_copy, ";", &saveptr);
+
+    while (command != NULL) {
+        // trim leading and trailing whitespace using isspace()
+        while (*command && isspace((unsigned char)*command)) command++;
+        size_t len = strlen(command);
+        while (len > 0 && isspace((unsigned char)command[len-1])) {
+            command[--len] = '\0';
+        }
+
+        if (len == 0) {
+            command = strtok_r(NULL, ";", &saveptr);
+            continue; // empty command
+        }
+
+        // Debug: show which sub-command we're about to run (goes to stderr)
+        fprintf(stderr, "[batch] executing: '%s'\n", command);
+
+        // Parse and execute this command
+        char *args[MAX_ARGS];
+        int argsc;
+        char cmd_copy[MAX_LINE];
+        strncpy(cmd_copy, command, sizeof(cmd_copy)-1);
+        cmd_copy[sizeof(cmd_copy)-1] = '\0';
+
+        parse_command(cmd_copy, args, &argsc);
+        if (argsc == 0) {
+            command = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+
+        if (command_with_pipe(command)) {
+            execute_pipeline(args, argsc);
+        } else if (command_with_redirection(command)) {
+            launch_program_with_redirection(args, argsc);
+        } else {
+            launch_program(args, argsc);
+        }
+
+        command = strtok_r(NULL, ";", &saveptr);
+    }
+}

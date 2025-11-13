@@ -53,6 +53,7 @@ void child_with_output_redirected(const char *outfile, int append);
 void launch_program(char *args[], int argsc);
 void launch_program_with_redirection(char *args[], int argsc);
 void execute_pipeline(char *args[], int argsc);
+void execute_batched_commands(char line[]);
 
 //implements cd 
 int cd_implementation(char *args[], int argsc);
@@ -60,9 +61,11 @@ int cd_implementation(char *args[], int argsc);
 //helper for pipes
 int count_pipes(char *args[], int argsc);
 
-/// Checks if there's a command with a redirection/ pipes
+/// Checks if there's a command with a redirection/ pipes/ batched commans
 int command_with_redirection(char line[]);  // returns 1 if <, >, or >> appears
 int command_with_pipe(char line[]);
+int has_batched_command(char line[]);
+
 
 
 #endif

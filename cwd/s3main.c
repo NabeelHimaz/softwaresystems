@@ -16,6 +16,11 @@ int main(int argc, char *argv[]){
 
         read_command_line(line);
 
+        if(has_batched_command(line)){
+            execute_batched_commands(line);
+            continue;
+        }
+
         ///Pipes
         if (command_with_pipe(line)) {
             parse_command(line, args, &argsc);
