@@ -7,9 +7,6 @@
 pthread_mutex_t listener_mutex = PTHREAD_MUTEX_INITIALIZER;
 int sd;
 
-typedef struct {
-    int sd;
-} listener_data;
 
 typedef enum {
     REQ_CONNECT,
@@ -25,6 +22,12 @@ typedef enum {
     REQ_UNKNOWN
 } request_t;
 
+typedef struct {
+    int sd;
+    struct sockaddr_in client_address;
+    request_t request_type;
+    char request_content[BUFFER_SIZE];
+} process_data;
 
 
 // Helper function to parse request type
@@ -69,32 +72,14 @@ request_t parse_request_type(char *request) {
     return REQ_UNKNOWN;
 }
 
-
-void* listener(void *arg){
-    char client_request[BUFFER_SIZE], server_response[BUFFER_SIZE];
-    struct sockaddr_in client_address;
-
-    while (1) {
-
-        pthread_mutex_lock(&listener_mutex);
-       
-        int rc = udp_socket_read(sd, &client_address, client_request, BUFFER_SIZE);
-        pthread_mutex_unlock(&listener_mutex);
-        
-        if (rc > 0) {
-            printf("\n%s", client_request);
-        }
+char* request_content(char *request) {
+    char *dollar = strchr(request, '$');
+    if (dollar == NULL) {
+        return NULL;
     }
-    
-    return NULL;
+    return dollar + 1;  // Skip the '$' character
 }
 
-
-
-
-void *request_type(void *arg){
-
-}
 
 
 
@@ -131,10 +116,44 @@ int main(int argc, char *argv[])
         // Successfully received an incoming request
         if (rc > 0)
         {
-            // Demo code (remove later)
-            strcpy(server_response, "Hi, the server has received: ");
-            strcat(server_response, client_request);
-            strcat(server_response, "\n");
+            
+            request_t req_type = request_type(client_request);
+            char *content = request_content(client_request);
+            
+            //intialise struct
+            process_data *args = malloc(sizeof(process_data));
+            args->sd = sd;
+            args->client_address = client_address;
+            args->request_type = req_type;
+
+            strncpy(args->request_content, content, BUFFER_SIZE - 1);
+            args->request_content[BUFFER_SIZE - 1] = '\0';
+                
+
+            pthread_t thread;
+            
+            switch (req_type) {
+                case REQ_CONNECT:
+                    pthread_create(&thread, NULL, handle_connect, args);
+                    pthread_detach(thread);
+                    break;
+                case REQ_SAY:
+                    pthread_create(&thread, NULL, handle_say, args);
+                    pthread_detach(thread);
+                    break;
+                case REQ_SAYTO:
+                    pthread_create(&thread, NULL, handle_sayto, args);
+                    pthread_detach(thread);
+                    break;
+                case REQ_DISCONNECT:
+                    pthread_create(&thread, NULL, handle_disconnect, args);
+                    pthread_detach(thread);
+                    break;
+                default:
+                    printf("Unknown or unimplemented request type\n");
+                    free(args);
+            }
+
 
             // This function writes back to the incoming client,
             // whose address is now available in client_address, 
