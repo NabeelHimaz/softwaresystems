@@ -77,8 +77,9 @@ int main(int argc, char *argv[])
     int CLIENT_PORT = 0;
 
     if (argc > 1) {
-        CLIENT_PORT = atoi(argv[1]);
-        if (CLIENT_PORT == 6666) {
+        int CLIENT_PORT_ADMIN = atoi(argv[1]);
+        if (CLIENT_PORT_ADMIN == 6666) {
+            CLIENT_PORT = CLIENT_PORT_ADMIN;
             printf("ADMIN client on port 6666\n");
         }
     }
