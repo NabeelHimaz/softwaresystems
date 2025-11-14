@@ -23,6 +23,7 @@ void *sender(void *arg){
             break;
         }
         input[strcspn(input, "\n")] = '\0';
+        strcpy(client_request, input);
 
         pthread_mutex_lock(&socket_mutex);
         // This function writes to the server (sends request)
@@ -41,6 +42,13 @@ void *sender(void *arg){
 void *listener(void *arg){
 
     char response[BUFFER_SIZE];
+
+    // Variable to store the server's IP address and port
+    // (i.e. the server we are trying to contact).
+    // Generally, it is possible for the responder to be
+    // different from the server requested.
+    // Although, in our case the responder will
+    // always be the same as the server.
     struct sockaddr_in responder_addr;
     
     while (active) {
@@ -57,29 +65,28 @@ void *listener(void *arg){
         if (rc > 0) {
             printf("\n%s", response);
         }
+        strcpy(server_response, response);
     }
     
     return NULL;
 }
 
-
-
 // client code
 int main(int argc, char *argv[])
 {   
+    int CLIENT_PORT = 0;
+
+    if (argc > 1) {
+        CLIENT_PORT = atoi(argv[1]);
+        if (CLIENT_PORT == 6666) {
+            printf("ADMIN client on port 6666\n");
+        }
+    }
     // This function opens a UDP socket,
     // binding it to all IP interfaces of this machine,
     // and port number CLIENT_PORT.
     // (See details of the function in udp.h)
-    int sd = udp_socket_open(0); //0 binds to any available port
-
-    // Variable to store the server's IP address and port
-    // (i.e. the server we are trying to contact).
-    // Generally, it is possible for the responder to be
-    // different from the server requested.
-    // Although, in our case the responder will
-    // always be the same as the server.
-    struct sockaddr_in responder_addr;
+    int sd = udp_socket_open(CLIENT_PORT); //0 binds to any available port
 
     // Initializing the server's address.
     // We are currently running the server on localhost (127.0.0.1).
@@ -87,12 +94,6 @@ int main(int argc, char *argv[])
     // when running the server on a different machine.
     // (See details of the function in udp.h)
     int rc = set_socket_addr(&server_addr, "127.0.0.1", SERVER_PORT);
-
-    // Storage for request and response messages
-    char client_request[BUFFER_SIZE], server_response[BUFFER_SIZE];
-
-    // Demo code (remove later)
-    strcpy(client_request, "Dummy Request");
 
     pthread_t sender_id, listener_id;
 
@@ -103,6 +104,6 @@ int main(int argc, char *argv[])
         
     
     pthread_create(&sender_id, NULL, sender, NULL);
-    
+
     return 0;
 }
