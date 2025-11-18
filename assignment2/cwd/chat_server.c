@@ -48,16 +48,16 @@ mute_node_t *mute_list_head = NULL;
 pthread_mutex_t mute_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
-int addr_equal(struct sockaddr_in *a1, struct sockaddr_in *a2) {
+int addr_equal(struct sockaddr_in *a1, struct sockaddr_in *a2){
     return (a1->sin_addr.s_addr == a2->sin_addr.s_addr && 
             a1->sin_port == a2->sin_port);
 }
 
-client_node_t* find_client_by_addr(struct sockaddr_in *addr) {
-    // Caller should hold read or write lock
+client_node_t* find_client_by_addr(struct sockaddr_in *addr){
+
     client_node_t *current = client_list_head;
-    while (current != NULL) {
-        if (addr_equal(&current->addr, addr)) {
+    while(current != NULL){
+        if(addr_equal(&current->addr, addr)){
             return current;
         }
         current = current->next;
@@ -65,11 +65,11 @@ client_node_t* find_client_by_addr(struct sockaddr_in *addr) {
     return NULL;
 }
 
-client_node_t* find_client_by_name(const char *name) {
-    // Caller should hold read or write lock
+client_node_t* find_client_by_name(const char *name){
+
     client_node_t *current = client_list_head;
-    while (current != NULL) {
-        if (strcmp(current->name, name) == 0) {
+    while(current != NULL){
+        if(strcmp(current->name, name) == 0){
             return current;
         }
         current = current->next;
@@ -77,13 +77,13 @@ client_node_t* find_client_by_name(const char *name) {
     return NULL;
 }
 
-int is_muted(struct sockaddr_in *muter, struct sockaddr_in *mutee) {
+int is_muted(struct sockaddr_in *muter, struct sockaddr_in *mutee){
     pthread_mutex_lock(&mute_list_lock);
     
     mute_node_t *current = mute_list_head;
-    while (current != NULL) {
-        if (addr_equal(&current->muter, muter) && 
-            addr_equal(&current->mutee, mutee)) {
+    while(current != NULL){
+        if(addr_equal(&current->muter, muter) && 
+            addr_equal(&current->mutee, mutee)){
             pthread_mutex_unlock(&mute_list_lock);
             return 1;
         }
@@ -94,14 +94,14 @@ int is_muted(struct sockaddr_in *muter, struct sockaddr_in *mutee) {
     return 0;
 }
 
-void add_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee) {
+void add_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee){
     pthread_mutex_lock(&mute_list_lock);
     
     // Check if already muted
     mute_node_t *current = mute_list_head;
-    while (current != NULL) {
-        if (addr_equal(&current->muter, muter) && 
-            addr_equal(&current->mutee, mutee)) {
+    while(current != NULL){
+        if(addr_equal(&current->muter, muter) && 
+            addr_equal(&current->mutee, mutee)){
             pthread_mutex_unlock(&mute_list_lock);
             return;  // Already muted
         }
@@ -118,19 +118,20 @@ void add_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee) {
     pthread_mutex_unlock(&mute_list_lock);
 }
 
-void remove_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee) {
+void remove_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee){
     pthread_mutex_lock(&mute_list_lock);
     
     mute_node_t *current = mute_list_head;
     mute_node_t *prev = NULL;
     
-    while (current != NULL) {
-        if (addr_equal(&current->muter, muter) && 
-            addr_equal(&current->mutee, mutee)) {
+    while(current != NULL){
+        if(addr_equal(&current->muter, muter) && 
+            addr_equal(&current->mutee, mutee)){
             // Found it, remove it
-            if (prev == NULL) {
+            if(prev == NULL){
                 mute_list_head = current->next;
-            } else {
+            } 
+            else{
                 prev->next = current->next;
             }
             free(current);
@@ -144,11 +145,11 @@ void remove_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee) {
     pthread_mutex_unlock(&mute_list_lock);
 }
 
-void update_last_active(struct sockaddr_in *addr) {
+void update_last_active(struct sockaddr_in *addr){
     pthread_rwlock_wrlock(&client_list_lock);
     
     client_node_t *client = find_client_by_addr(addr);
-    if (client != NULL) {
+    if(client != NULL){
         client->last_active = time(NULL);
     }
     
@@ -201,7 +202,16 @@ char* request_content(char *request){
     if(dollar == NULL){
         return NULL;
     }
-    return dollar + 1;  // Skip the '$' character
+    
+    // skip the $
+    char *content = dollar + 1;
+    
+    // Skip the space after $
+    while(*content == ' '){
+        content++;
+    }
+    
+    return content;
 }
 
 void *connect_h(void *arg){
@@ -244,12 +254,13 @@ void *disconnect(void *arg){
     client_node_t *current = client_list_head;
     client_node_t *prev = NULL;
     
-    while (current != NULL) {
-        if (addr_equal(&current->addr, &data->client_address)) {
+    while(current != NULL){
+        if(addr_equal(&current->addr, &data->client_address)){
             // Found the client
-            if (prev == NULL) {
+            if(prev == NULL){
                 client_list_head = current->next;
-            } else {
+            } 
+            else{
                 prev->next = current->next;
             }
             
@@ -296,8 +307,8 @@ void *say(void *arg){
     
     // Send to all clients except those who muted the sender
     client_node_t *current = client_list_head;
-    while (current != NULL) {
-        if (!is_muted(&current->addr, &data->client_address)) {
+    while(current != NULL){
+        if(!is_muted(&current->addr, &data->client_address)){
             udp_socket_write(data->sd, &current->addr, broadcast, BUFFER_SIZE);
         }
         current = current->next;
@@ -315,16 +326,35 @@ void *sayto(void *arg){
     process_data *data = (process_data *)arg;
     char response[BUFFER_SIZE];
     
+    printf("DEBUG sayto: request_content = '%s'\n", data->request_content);
+    
     pthread_rwlock_rdlock(&client_list_lock);
     
     // Find sender
     client_node_t *sender = find_client_by_addr(&data->client_address);
+    if(sender == NULL){
+        pthread_rwlock_unlock(&client_list_lock);
+        snprintf(response, BUFFER_SIZE, "Error: You must connect first\n");
+        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        free(data);
+        return NULL;
+    }
+    
+    printf("DEBUG: Sender found: %s\n", sender->name);
     
     // Update sender's last active time
     sender->last_active = time(NULL);
     
     // Parse recipient name and message
     char *space = strchr(data->request_content, ' ');
+    
+    if(space == NULL){
+        pthread_rwlock_unlock(&client_list_lock);
+        snprintf(response, BUFFER_SIZE, "Error: Invalid format. Use: sayto$ <n> <message>\n");
+        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        free(data);
+        return NULL;
+    }
     
     char recipient_name[256];
     int name_len = space - data->request_content;
@@ -333,22 +363,42 @@ void *sayto(void *arg){
     
     char *message = space + 1;
     
+    printf("DEBUG: Parsed recipient='%s', message='%s'\n", recipient_name, message);
+    
     // Find recipient
     client_node_t *recipient = find_client_by_name(recipient_name);
     
-    // Check if recipient has muted sender
-    if (is_muted(&recipient->addr, &data->client_address)) {
+    if(recipient == NULL){
         pthread_rwlock_unlock(&client_list_lock);
-        // Don't tell sender they are muted, just confirm delivery
+        snprintf(response, BUFFER_SIZE, "Error: User '%s' not found\n", recipient_name);
+        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        free(data);
+        return NULL;
+    }
+    
+    printf("DEBUG: Recipient found: %s at port %d\n", 
+           recipient->name, ntohs(recipient->addr.sin_port));
+    
+    // Check if recipient has muted sender
+    if(is_muted(&recipient->addr, &data->client_address)){
+        pthread_rwlock_unlock(&client_list_lock);
+        printf("DEBUG: Recipient has muted sender\n");
         snprintf(response, BUFFER_SIZE, "Private message sent to %s\n", recipient_name);
         udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
         free(data);
         return NULL;
     }
     
-    // Send private message
+    // Send private message to recipient
     snprintf(response, BUFFER_SIZE, "[Private from %s]: %s\n", sender->name, message);
-    udp_socket_write(data->sd, &recipient->addr, response, BUFFER_SIZE);
+    printf("DEBUG: Sending to recipient: '%s'\n", response);
+    
+    int rc = udp_socket_write(data->sd, &recipient->addr, response, BUFFER_SIZE);
+    printf("DEBUG: udp_socket_write returned %d\n", rc);
+    
+    if(rc < 0){
+        perror("ERROR sending to recipient");
+    }
     
     // Confirm to sender
     snprintf(response, BUFFER_SIZE, "Private message sent to %s\n", recipient_name);
@@ -420,7 +470,7 @@ void *kick(void *arg){
     char broadcast[BUFFER_SIZE];
     
     // Check if requester is admin (port 6666)
-    if (ntohs(data->client_address.sin_port) != 6666) {
+    if(ntohs(data->client_address.sin_port) != 6666){
         snprintf(response, BUFFER_SIZE, "Need Admin privilages\n");
         udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
         free(data);
@@ -433,7 +483,7 @@ void *kick(void *arg){
     client_node_t *current = client_list_head;
     client_node_t *prev = NULL;
     
-    while (current != NULL) {
+    while(current != NULL){
         if (strcmp(current->name, data->request_content) == 0) {
             // Found the client to kick
             
@@ -447,17 +497,18 @@ void *kick(void *arg){
                      "[SYSTEM]: %s has been kicked from the chat\n", current->name);
             
             client_node_t *temp = client_list_head;
-            while (temp != NULL) {
-                if (!addr_equal(&temp->addr, &current->addr)) {
+            while(temp != NULL){
+                if(!addr_equal(&temp->addr, &current->addr)){
                     udp_socket_write(data->sd, &temp->addr, broadcast, BUFFER_SIZE);
                 }
                 temp = temp->next;
             }
             
             // Remove from list
-            if (prev == NULL) {
+            if(prev == NULL){
                 client_list_head = current->next;
-            } else {
+            }
+            else{
                 prev->next = current->next;
             }
             
@@ -495,10 +546,9 @@ void *rename_h(void *arg){
     client_node_t *client = find_client_by_addr(&data->client_address);
     
     // Check if new name is already taken
-    if (find_client_by_name(data->request_content) != NULL) {
+    if(find_client_by_name(data->request_content) != NULL){
         pthread_rwlock_unlock(&client_list_lock);
-        snprintf(response, BUFFER_SIZE, "Error: Name '%s' is already taken\n", 
-                 data->request_content);
+        snprintf(response, BUFFER_SIZE, "Error: Name '%s' is already taken\n", data->request_content);
         udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
         free(data);
         return NULL;
