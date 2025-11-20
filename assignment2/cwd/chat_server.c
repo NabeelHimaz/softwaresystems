@@ -573,6 +573,32 @@ void *rename_h(void *arg){
     return NULL;
 }
 
+void *unknown(void *arg){
+    process_data *data = (process_data *)arg;
+    char response[BUFFER_SIZE];
+    
+    // Create helpful error message with available commands
+    snprintf(response, BUFFER_SIZE, 
+             "Error: Unknown command. Available commands:\n"
+             "  conn$ <name>          - Connect to chat\n"
+             "  say$ <message>        - Send message to all\n"
+             "  sayto$ <name> <msg>   - Send private message\n"
+             "  mute$ <name>          - Mute a user\n"
+             "  unmute$ <name>        - Unmute a user\n"
+             "  rename$ <newname>     - Change your name\n"
+             "  disconn$              - Disconnect from chat\n"
+             "  kick$ <name>          - Kick user (admin only)\n");
+    
+    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+    
+    printf("[ERROR] Unknown command from port %d\n", 
+           ntohs(data->client_address.sin_port));
+    
+    free(data);
+    return NULL;
+}
+
+
 int main(int argc, char *argv[])
 {
 
@@ -655,9 +681,11 @@ int main(int argc, char *argv[])
                     pthread_create(&thread, NULL, kick, args);
                     pthread_detach(thread);
                     break;
+                
+                case UNKNOWN:
                 default:
-                    printf("Unknown request \n");
-                    free(args);
+                    pthread_create(&thread, NULL, unknown, args);
+                    pthread_detach(thread);
             }
 
 
