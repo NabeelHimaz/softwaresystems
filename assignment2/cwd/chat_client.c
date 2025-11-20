@@ -6,19 +6,20 @@
 #include <time.h>
 #include "udp.h"
 
-
+// Global variables
 int sd;
 struct sockaddr_in server_addr;
 FILE *chat_file = NULL;
 pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
-// Storage for request and response messages
-char client_request[BUFFER_SIZE], server_response[BUFFER_SIZE];
 
 int active = 1;
 
 void *sender(void *arg){
-
     char input[BUFFER_SIZE];
+
+    printf("\n=== Chat Client Started ===\n");
+    printf("Commands: conn$ <n>, say$ <msg>, sayto$ <n> <msg>, quit$\n");
+    printf("===========================\n\n");
 
     while(active){
         printf("> ");
@@ -27,45 +28,66 @@ void *sender(void *arg){
         if (fgets(input, BUFFER_SIZE, stdin) == NULL) {
             break;
         }
+        
+        // Remove newline
         input[strcspn(input, "\n")] = '\0';
-        strcpy(client_request, input);
+        
+        // Skip empty input
+        if (strlen(input) == 0) {
+            continue;
+        }
 
-
-
-        // This function writes to the server (sends request)
-        // through the socket at sd.
-        // (See details of the function in udp.h)
+        // Send to server
         int rc = udp_socket_write(sd, &server_addr, input, BUFFER_SIZE);
-
-
+        
+        if (rc < 0) {
+            printf("Error: Failed to send message\n");
+        }
+        
+        // Check if quit command
+        if (strncmp(input, "quit$", 5) == 0) {
+            printf("Disconnecting...\n");
+            active = 0;
+            break;
+        }
     }
     return NULL;
 }
 
 void *listener(void *arg){
-
     char response[BUFFER_SIZE];
-
     struct sockaddr_in responder_addr;
     
     while (active) {
-
-
-        // This function reads the response from the server
-        // through the socket at sd.
-        // In our case, responder_addr will simply be
-        // the same as server_addr.
-        // (See details of the function in udp.h)
-        int rc = udp_socket_read(sd, &responder_addr, response, BUFFER_SIZE);
-
+        // Clear buffer
+        memset(response, 0, BUFFER_SIZE);
         
-        if (rc > 0) {
-            printf("\n%s", response);
+        // Read from server
+        int rc = udp_socket_read(sd, &responder_addr, response, BUFFER_SIZE);
+        
+        if (rc <= 0) {
+            if (rc < 0 && active) {
+                // Error occurred
+                usleep(100000);  // Sleep to avoid busy loop
+            }
+            continue;
         }
-        strcpy(server_response, response);
-
+        
+        // Check if it's a ping
+        if (strncmp(response, "ping$", 5) == 0) {
+            char ping_response[] = "ret-ping$";
+            udp_socket_write(sd, &server_addr, ping_response, BUFFER_SIZE);
+            continue;  // Don't display ping
+        }
+        
+        // Display message to terminal
+        printf("\n%s", response);
+        printf("> ");
+        fflush(stdout);
+        
+        // Write to file
         pthread_mutex_lock(&file_mutex);
-            
+        
         if (chat_file != NULL) {
             // Get timestamp
             time_t now = time(NULL);
@@ -75,67 +97,85 @@ void *listener(void *arg){
             
             // Write timestamp and message to file
             fprintf(chat_file, "[%s] %s", timestamp, response);
-            fflush(chat_file);  // Ensure it's written immediately
+            fflush(chat_file);
         }
         
         pthread_mutex_unlock(&file_mutex);
-        
-        // Also print a notification to terminal
-        printf("\n[New message received - check iChat.txt]\n> ");
-        fflush(stdout);
     }
     
     return NULL;
 }
 
-// client code
 int main(int argc, char *argv[])
 {   
     int CLIENT_PORT = 0;
 
     if (argc > 1) {
-        int CLIENT_PORT_ADMIN = atoi(argv[1]);
-        if (CLIENT_PORT_ADMIN == 6666) {
-            CLIENT_PORT = CLIENT_PORT_ADMIN;
+        int port_arg = atoi(argv[1]);
+        if (port_arg == 6666) {
+            CLIENT_PORT = port_arg;
             printf("ADMIN client on port 6666\n");
+        } else {
+            CLIENT_PORT = port_arg;
         }
     }
-    // This function opens a UDP socket,
-    // binding it to all IP interfaces of this machine,
-    // and port number CLIENT_PORT.
-    // (See details of the function in udp.h)
-    int sd = udp_socket_open(CLIENT_PORT); //0 binds to any available port
+    
+    // ✅ FIXED: Use global sd, don't shadow it!
+    sd = udp_socket_open(CLIENT_PORT);
+    
+    if (sd < 0) {
+        fprintf(stderr, "Error: Failed to open socket\n");
+        return 1;
+    }
+    
+    // Get actual port
+    struct sockaddr_in local_addr;
+    socklen_t addr_len = sizeof(local_addr);
+    if (getsockname(sd, (struct sockaddr*)&local_addr, &addr_len) == 0) {
+        printf("Client running on port: %d\n", ntohs(local_addr.sin_port));
+    }
 
-    // Initializing the server's address.
-    // We are currently running the server on localhost (127.0.0.1).
-    // You can change this to a different IP address
-    // when running the server on a different machine.
-    // (See details of the function in udp.h)
+    // Set server address
     int rc = set_socket_addr(&server_addr, "127.0.0.1", SERVER_PORT);
+    if (rc < 0) {
+        fprintf(stderr, "Error: Failed to set server address\n");
+        close(sd);
+        return 1;
+    }
 
+    // Open chat log file
     chat_file = fopen("iChat.txt", "a");
-    
-        // Write a session start marker
-    time_t now = time(NULL);
-    fprintf(chat_file, "\n=== New Chat Session Started at %s ===\n", ctime(&now));
-    fflush(chat_file);
-    printf("Chat output file opened: iChat.txt\n");
-    
+    if (chat_file != NULL) {
+        time_t now = time(NULL);
+        fprintf(chat_file, "\n=== New Chat Session Started at %s ===\n", ctime(&now));
+        fflush(chat_file);
+        printf("✓ Chat log file: iChat.txt\n");
+    } else {
+        printf("Warning: Could not open iChat.txt\n");
+    }
 
+    // Create threads
     pthread_t sender_id, listener_id;
 
-    pthread_create(&listener_id, //thread id stored here
-        NULL, //defualt attributes
-        listener, //function to run
-        NULL); //passing no data
-        
+    if (pthread_create(&listener_id, NULL, listener, NULL) != 0) {
+        fprintf(stderr, "Error: Failed to create listener thread\n");
+        if (chat_file) fclose(chat_file);
+        close(sd);
+        return 1;
+    }
     
-    pthread_create(&sender_id, NULL, sender, NULL);
-    
+    if (pthread_create(&sender_id, NULL, sender, NULL) != 0) {
+        fprintf(stderr, "Error: Failed to create sender thread\n");
+        if (chat_file) fclose(chat_file);
+        close(sd);
+        return 1;
+    }
+
+    // Wait for sender to finish (when user quits)
     pthread_join(sender_id, NULL);
-    active = 0;
     
-    // Give listener thread a moment to finish
+    // Signal listener to stop
+    active = 0;
     sleep(1);
     
     // Close chat file
@@ -146,7 +186,7 @@ int main(int argc, char *argv[])
         fclose(chat_file);
         chat_file = NULL;
         pthread_mutex_unlock(&file_mutex);
-        printf("Chat file closed\n");
+        printf("✓ Chat file closed\n");
     }
     
     // Cleanup
