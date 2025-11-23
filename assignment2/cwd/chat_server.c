@@ -49,8 +49,7 @@ pthread_mutex_t mute_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 int addr_equal(struct sockaddr_in *a1, struct sockaddr_in *a2){
-    return (a1->sin_addr.s_addr == a2->sin_addr.s_addr && 
-            a1->sin_port == a2->sin_port);
+    return (a1->sin_addr.s_addr == a2->sin_addr.s_addr && a1->sin_port == a2->sin_port);
 }
 
 client_node_t* find_client_by_addr(struct sockaddr_in *addr){
@@ -82,9 +81,7 @@ int is_muted(struct sockaddr_in *muter, struct sockaddr_in *mutee){
     
     mute_node_t *current = mute_list_head;
     while(current != NULL){
-        if(addr_equal(&current->muter, muter) && 
-            addr_equal(&current->mutee, mutee)){
-            pthread_mutex_unlock(&mute_list_lock);
+        if(addr_equal(&current->muter, muter) && addr_equal(&current->mutee, mutee)){pthread_mutex_unlock(&mute_list_lock);
             return 1;
         }
         current = current->next;
@@ -100,9 +97,7 @@ void add_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee){
     // Check if already muted
     mute_node_t *current = mute_list_head;
     while(current != NULL){
-        if(addr_equal(&current->muter, muter) && 
-            addr_equal(&current->mutee, mutee)){
-            pthread_mutex_unlock(&mute_list_lock);
+        if(addr_equal(&current->muter, muter) && addr_equal(&current->mutee, mutee)){pthread_mutex_unlock(&mute_list_lock);
             return;  // Already muted
         }
         current = current->next;
@@ -125,8 +120,7 @@ void remove_mute(struct sockaddr_in *muter, struct sockaddr_in *mutee){
     mute_node_t *prev = NULL;
     
     while(current != NULL){
-        if(addr_equal(&current->muter, muter) && 
-            addr_equal(&current->mutee, mutee)){
+        if(addr_equal(&current->muter, muter) && addr_equal(&current->mutee, mutee)){
             // Found it, remove it
             if(prev == NULL){
                 mute_list_head = current->next;
@@ -157,8 +151,6 @@ void update_last_active(struct sockaddr_in *addr){
 }
 
 request_t parse_request_type(char *request){
-
-    
     
     char *dollar = strchr(request, '$');
     
@@ -168,7 +160,6 @@ request_t parse_request_type(char *request){
   
     int cmd_len = dollar - request;
     
-    // Compare command strings
     if(strncmp(request, "conn", cmd_len) == 0){
         return CONNECT;
     }
@@ -232,13 +223,8 @@ void *connect_h(void *arg){
     pthread_rwlock_unlock(&client_list_lock);
     
     // Send confirmation
-    snprintf(response, BUFFER_SIZE, 
-             "Welcome %s! You are now connected to the chat.\n", 
-             data->request_content);
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
-    
-    printf("[CONNECT] %s joined from port %d\n", 
-           data->request_content, ntohs(data->client_address.sin_port));
+    snprintf(response, BUFFER_SIZE, "You are now connected to the chat.\n");
+    udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
     
     free(data);
     return NULL;
@@ -264,15 +250,12 @@ void *disconnect(void *arg){
                 prev->next = current->next;
             }
             
-            snprintf(response, BUFFER_SIZE, 
-                     "Goodbye %s! You have been disconnected.\n", current->name);
-            
-            printf("[DISCONNECT] %s left\n", current->name);
+            snprintf(response, BUFFER_SIZE, "You have been disconnected.\n");
             
             free(current);
             pthread_rwlock_unlock(&client_list_lock);
             
-            udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+            udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
             free(data);
             return NULL;
         }
@@ -283,7 +266,7 @@ void *disconnect(void *arg){
     pthread_rwlock_unlock(&client_list_lock);
     
     snprintf(response, BUFFER_SIZE, "Error: You are not connected\n");
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+    udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
     
     free(data);
     return NULL;
@@ -309,14 +292,12 @@ void *say(void *arg){
     client_node_t *current = client_list_head;
     while(current != NULL){
         if(!is_muted(&current->addr, &data->client_address)){
-            udp_socket_write(data->sd, &current->addr, broadcast, BUFFER_SIZE);
+            udp_socket_write(data->sd, &current->addr, broadcast, strlen(broadcast) + 1);
         }
         current = current->next;
     }
     
     pthread_rwlock_unlock(&client_list_lock);
-    
-    printf("[BROADCAST] %s: %s\n", sender->name, data->request_content);
     
     free(data);
     return NULL;
@@ -326,21 +307,18 @@ void *sayto(void *arg){
     process_data *data = (process_data *)arg;
     char response[BUFFER_SIZE];
     
-    printf("DEBUG sayto: request_content = '%s'\n", data->request_content);
-    
     pthread_rwlock_rdlock(&client_list_lock);
     
     // Find sender
     client_node_t *sender = find_client_by_addr(&data->client_address);
+
     if(sender == NULL){
         pthread_rwlock_unlock(&client_list_lock);
-        snprintf(response, BUFFER_SIZE, "Error: You must connect first\n");
-        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        snprintf(response, BUFFER_SIZE, "ERROR: You must connect first\n");
+        udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
         free(data);
         return NULL;
     }
-    
-    printf("DEBUG: Sender found: %s\n", sender->name);
     
     // Update sender's last active time
     sender->last_active = time(NULL);
@@ -350,8 +328,8 @@ void *sayto(void *arg){
     
     if(space == NULL){
         pthread_rwlock_unlock(&client_list_lock);
-        snprintf(response, BUFFER_SIZE, "Error: Invalid format. Use: sayto$ <n> <message>\n");
-        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        snprintf(response, BUFFER_SIZE, "ERROR: Invalid format\n");
+        udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
         free(data);
         return NULL;
     }
@@ -363,38 +341,31 @@ void *sayto(void *arg){
     
     char *message = space + 1;
     
-    printf("DEBUG: Parsed recipient='%s', message='%s'\n", recipient_name, message);
-    
     // Find recipient
     client_node_t *recipient = find_client_by_name(recipient_name);
     
     if(recipient == NULL){
         pthread_rwlock_unlock(&client_list_lock);
         snprintf(response, BUFFER_SIZE, "Error: User '%s' not found\n", recipient_name);
-        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        udp_socket_write(data->sd, &data->client_address, response, strlen(message) + 1);
         free(data);
         return NULL;
     }
     
-    printf("DEBUG: Recipient found: %s at port %d\n", 
-           recipient->name, ntohs(recipient->addr.sin_port));
-    
     // Check if recipient has muted sender
     if(is_muted(&recipient->addr, &data->client_address)){
         pthread_rwlock_unlock(&client_list_lock);
-        printf("DEBUG: Recipient has muted sender\n");
+
         snprintf(response, BUFFER_SIZE, "Private message sent to %s\n", recipient_name);
-        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        udp_socket_write(data->sd, &data->client_address, response, strlen(message) + 1);
         free(data);
         return NULL;
     }
     
     // Send private message to recipient
     snprintf(response, BUFFER_SIZE, "[Private from %s]: %s\n", sender->name, message);
-    printf("DEBUG: Sending to recipient: '%s'\n", response);
     
-    int rc = udp_socket_write(data->sd, &recipient->addr, response, BUFFER_SIZE);
-    printf("DEBUG: udp_socket_write returned %d\n", rc);
+    int rc = udp_socket_write(data->sd, &recipient->addr, response, strlen(message) + 1);
     
     if(rc < 0){
         perror("ERROR sending to recipient");
@@ -402,11 +373,9 @@ void *sayto(void *arg){
     
     // Confirm to sender
     snprintf(response, BUFFER_SIZE, "Private message sent to %s\n", recipient_name);
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+    udp_socket_write(data->sd, &data->client_address, response, strlen(message) + 1);
     
     pthread_rwlock_unlock(&client_list_lock);
-    
-    printf("[PRIVATE] %s -> %s: %s\n", sender->name, recipient_name, message);
     
     free(data);
     return NULL;
@@ -430,9 +399,7 @@ void *mute(void *arg){
     pthread_rwlock_unlock(&client_list_lock);
     
     snprintf(response, BUFFER_SIZE, "You have muted %s\n", data->request_content);
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
-    
-    printf("[MUTE] %s muted %s\n", muter->name, data->request_content);
+    udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
     
     free(data);
     return NULL;
@@ -456,9 +423,7 @@ void *unmute(void *arg){
     pthread_rwlock_unlock(&client_list_lock);
     
     snprintf(response, BUFFER_SIZE, "You have unmuted %s\n", data->request_content);
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
-    
-    printf("[UNMUTE] %s unmuted %s\n", unmuter->name, data->request_content);
+    udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
     
     free(data);
     return NULL;
@@ -469,10 +434,10 @@ void *kick(void *arg){
     char response[BUFFER_SIZE];
     char broadcast[BUFFER_SIZE];
     
-    // Check if requester is admin (port 6666)
+    // Check if requester is admin port 6666
     if(ntohs(data->client_address.sin_port) != 6666){
-        snprintf(response, BUFFER_SIZE, "Need Admin privilages\n");
-        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        snprintf(response, BUFFER_SIZE, "You need Admin privilages\n");
+        udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
         free(data);
         return NULL;
     }
@@ -485,21 +450,19 @@ void *kick(void *arg){
     
     while(current != NULL){
         if (strcmp(current->name, data->request_content) == 0) {
-            // Found the client to kick
             
-            // Notify the kicked client
-            snprintf(response, BUFFER_SIZE, 
-                     "You have been kicked from the chat by admin\n");
-            udp_socket_write(data->sd, &current->addr, response, BUFFER_SIZE);
+            // tell the client they have been kicked
+            snprintf(response, BUFFER_SIZE, "You have been kicked from the chat by admin\n");
+
+            udp_socket_write(data->sd, &current->addr, response, strlen(response) + 1);
             
             // Broadcast to all other clients
-            snprintf(broadcast, BUFFER_SIZE, 
-                     "[SYSTEM]: %s has been kicked from the chat\n", current->name);
+            snprintf(broadcast, BUFFER_SIZE, "%s has been kicked from the chat\n", current->name);
             
             client_node_t *temp = client_list_head;
             while(temp != NULL){
                 if(!addr_equal(&temp->addr, &current->addr)){
-                    udp_socket_write(data->sd, &temp->addr, broadcast, BUFFER_SIZE);
+                    udp_socket_write(data->sd, &temp->addr, broadcast, strlen(broadcast) + 1);
                 }
                 temp = temp->next;
             }
@@ -512,11 +475,9 @@ void *kick(void *arg){
                 prev->next = current->next;
             }
             
-            printf("[KICK] Admin kicked %s\n", current->name);
-            
             // Confirm to admin
             snprintf(response, BUFFER_SIZE, "User %s has been kicked\n", current->name);
-            udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+            udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
             
             free(current);
             pthread_rwlock_unlock(&client_list_lock);
@@ -530,7 +491,7 @@ void *kick(void *arg){
     pthread_rwlock_unlock(&client_list_lock);
     
     snprintf(response, BUFFER_SIZE, "Error: User '%s' not found\n", data->request_content);
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+    udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
     
     free(data);
     return NULL;
@@ -548,8 +509,8 @@ void *rename_h(void *arg){
     // Check if new name is already taken
     if(find_client_by_name(data->request_content) != NULL){
         pthread_rwlock_unlock(&client_list_lock);
-        snprintf(response, BUFFER_SIZE, "Error: Name '%s' is already taken\n", data->request_content);
-        udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
+        snprintf(response, BUFFER_SIZE, "Error: This name is not available\n");
+        udp_socket_write(data->sd, &data->client_address, response, strlen(response) + 1);
         free(data);
         return NULL;
     }
@@ -563,8 +524,7 @@ void *rename_h(void *arg){
     
     pthread_rwlock_unlock(&client_list_lock);
     
-    snprintf(response, BUFFER_SIZE, "Your name has been changed to '%s'\n", 
-             data->request_content);
+    snprintf(response, BUFFER_SIZE, "Your name has been changed to '%s'\n", data->request_content);
     udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
     
     printf("[RENAME] %s changed name to %s\n", old_name, data->request_content);
@@ -572,32 +532,6 @@ void *rename_h(void *arg){
     free(data);
     return NULL;
 }
-
-void *unknown(void *arg){
-    process_data *data = (process_data *)arg;
-    char response[BUFFER_SIZE];
-    
-    // Create helpful error message with available commands
-    snprintf(response, BUFFER_SIZE, 
-             "Error: Unknown command. Available commands:\n"
-             "  conn$ <name>          - Connect to chat\n"
-             "  say$ <message>        - Send message to all\n"
-             "  sayto$ <name> <msg>   - Send private message\n"
-             "  mute$ <name>          - Mute a user\n"
-             "  unmute$ <name>        - Unmute a user\n"
-             "  rename$ <newname>     - Change your name\n"
-             "  disconn$              - Disconnect from chat\n"
-             "  kick$ <name>          - Kick user (admin only)\n");
-    
-    udp_socket_write(data->sd, &data->client_address, response, BUFFER_SIZE);
-    
-    printf("[ERROR] Unknown command from port %d\n", 
-           ntohs(data->client_address.sin_port));
-    
-    free(data);
-    return NULL;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -616,9 +550,6 @@ int main(int argc, char *argv[])
         // Storage for request and response messages
         char client_request[BUFFER_SIZE], server_response[BUFFER_SIZE];
 
-        // Demo code (remove later)
-        printf("Server is listening on port %d\n", SERVER_PORT);
-
         // Variable to store incoming client's IP address and port
         struct sockaddr_in client_address;
     
@@ -633,8 +564,6 @@ int main(int argc, char *argv[])
             
             request_t req_type = parse_request_type(client_request);
             char *content = request_content(client_request);
-
-            printf("request recieved \n");
             
             //intialise struct
             process_data *args = malloc(sizeof(process_data));
@@ -681,11 +610,12 @@ int main(int argc, char *argv[])
                     pthread_create(&thread, NULL, kick, args);
                     pthread_detach(thread);
                     break;
-                
                 case UNKNOWN:
                 default:
-                    pthread_create(&thread, NULL, unknown, args);
-                    pthread_detach(thread);
+                    snprintf(server_response, BUFFER_SIZE, "Error\n");
+                    udp_socket_write(sd, &client_address, server_response, strlen(server_response) + 1);
+                    free(args);
+                    break;
             }
 
 
@@ -693,11 +623,7 @@ int main(int argc, char *argv[])
             // whose address is now available in client_address, 
             // through the socket at sd.
             // (See details of the function in udp.h)
-            rc = udp_socket_write(sd, &client_address, server_response, BUFFER_SIZE);
-
-            // Demo code (remove later)
-            printf("Request served...\n");
-            printf("Client Port: %d\n", ntohs(client_address.sin_port));
+            rc = udp_socket_write(sd, &client_address, server_response, strlen(server_response) + 1);
         }
     }
 

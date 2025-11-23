@@ -17,10 +17,6 @@ int active = 1;
 void *sender(void *arg){
     char input[BUFFER_SIZE];
 
-    printf("\n=== Chat Client Started ===\n");
-    printf("Commands: conn$ <n>, say$ <msg>, sayto$ <n> <msg>, quit$\n");
-    printf("===========================\n\n");
-
     while(active){
         printf("> ");
         fflush(stdout);
@@ -38,14 +34,14 @@ void *sender(void *arg){
         }
 
         // Send to server
-        int rc = udp_socket_write(sd, &server_addr, input, BUFFER_SIZE);
+        int rc = udp_socket_write(sd, &server_addr, input, strlen(input) + 1);
         
         if (rc < 0) {
             printf("Error: Failed to send message\n");
         }
         
         // Check if quit command
-        if (strncmp(input, "quit$", 5) == 0) {
+        if (strncmp(input, "disconn$", 5) == 0) {
             printf("Disconnecting...\n");
             active = 0;
             break;
@@ -59,7 +55,7 @@ void *listener(void *arg){
     struct sockaddr_in responder_addr;
     
     while (active) {
-        // Clear buffer
+        // Clear buffer completely before reading
         memset(response, 0, BUFFER_SIZE);
         
         // Read from server
@@ -73,6 +69,9 @@ void *listener(void *arg){
             continue;
         }
         
+        // Ensure null termination
+        response[BUFFER_SIZE - 1] = '\0';
+        
         // Check if it's a ping
         if (strncmp(response, "ping$", 5) == 0) {
             char ping_response[] = "ret-ping$";
@@ -80,8 +79,19 @@ void *listener(void *arg){
             continue;  // Don't display ping
         }
         
-        // Display message to terminal
-        printf("\n%s", response);
+        // Find first printable character (skip garbage bytes at start)
+        char *clean_msg = response;
+        while (*clean_msg != '\0' && (*clean_msg < 32 || *clean_msg > 126)) {
+            clean_msg++;  // Skip non-printable characters
+        }
+        
+        // Skip if message is empty after cleaning
+        if (*clean_msg == '\0') {
+            continue;
+        }
+        
+        // Display clean message
+        printf("\n%s", clean_msg);
         printf("> ");
         fflush(stdout);
         
@@ -89,14 +99,7 @@ void *listener(void *arg){
         pthread_mutex_lock(&file_mutex);
         
         if (chat_file != NULL) {
-            // Get timestamp
-            time_t now = time(NULL);
-            struct tm *tm_info = localtime(&now);
-            char timestamp[64];
-            strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-            
-            // Write timestamp and message to file
-            fprintf(chat_file, "[%s] %s", timestamp, response);
+            fprintf(chat_file, "%s", clean_msg);
             fflush(chat_file);
         }
         
@@ -120,7 +123,6 @@ int main(int argc, char *argv[])
         }
     }
     
-    // ✅ FIXED: Use global sd, don't shadow it!
     sd = udp_socket_open(CLIENT_PORT);
     
     if (sd < 0) {
@@ -138,7 +140,6 @@ int main(int argc, char *argv[])
     // Set server address
     int rc = set_socket_addr(&server_addr, "127.0.0.1", SERVER_PORT);
     if (rc < 0) {
-        fprintf(stderr, "Error: Failed to set server address\n");
         close(sd);
         return 1;
     }
@@ -147,11 +148,10 @@ int main(int argc, char *argv[])
     chat_file = fopen("iChat.txt", "a");
     if (chat_file != NULL) {
         time_t now = time(NULL);
-        fprintf(chat_file, "\n=== New Chat Session Started at %s ===\n", ctime(&now));
+        fprintf(chat_file, "\nNew Chat Session Started\n");
         fflush(chat_file);
-        printf("✓ Chat log file: iChat.txt\n");
     } else {
-        printf("Warning: Could not open iChat.txt\n");
+        printf("Could not open iChat.txt\n");
     }
 
     // Create threads
@@ -182,11 +182,10 @@ int main(int argc, char *argv[])
     if (chat_file != NULL) {
         pthread_mutex_lock(&file_mutex);
         time_t now = time(NULL);
-        fprintf(chat_file, "=== Chat Session Ended at %s ===\n\n", ctime(&now));
+        fprintf(chat_file, "Chat Session Ended\n\n");
         fclose(chat_file);
         chat_file = NULL;
         pthread_mutex_unlock(&file_mutex);
-        printf("✓ Chat file closed\n");
     }
     
     // Cleanup
