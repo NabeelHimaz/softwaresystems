@@ -1,6 +1,6 @@
 #ifndef _S3_H_
 #define _S3_H_
-
+//TEST CHANGE
 ///See reference for what these libraries provide
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +10,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <stdbool.h>
+#include <limits.h>
+
+
 
 ///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
@@ -39,17 +43,30 @@ void read_command_line(char line[]);
 void construct_shell_prompt(char shell_prompt[]);
 void parse_command(char line[], char *args[], int *argsc);
 
-//Functions for Commands with redirection:
-int command_with_redirection(char line[]);
-void launch_program_with_redirection(char *args[], int argsc);
-void child_with_redirection(char *args[], int argsc);
-void child_with_input_redirected(char *filename);
-void child_with_output_redirected(char *filename, int append);
-
 
 ///Child functions (add more as appropriate)
 void child(char *args[], int argsc);
+void child_with_input_redirected(const char *infile);
+void child_with_output_redirected(const char *outfile, int append);
 
 ///Program launching functions (add more as appropriate)
 void launch_program(char *args[], int argsc);
+void launch_program_with_redirection(char *args[], int argsc);
+void execute_pipeline(char *args[], int argsc);
+void execute_batched_commands(char line[]);
+
+//implements cd 
+int cd_implementation(char *args[], int argsc);
+
+//helper for pipes
+int count_pipes(char *args[], int argsc);
+
+/// Checks if there's a command with a redirection/ pipes/ batched commans
+int command_with_redirection(char line[]);  // returns 1 if <, >, or >> appears
+int command_with_pipe(char line[]);
+int has_batched_command(char line[]);
+
+
+
 #endif
+
