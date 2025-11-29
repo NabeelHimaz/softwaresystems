@@ -3,29 +3,27 @@
 #include <ctype.h>
 
 ///Simple for now, but will be expanded in a following section
-void construct_shell_prompt(char shell_prompt[])
-{
+void construct_shell_prompt(char shell_prompt[]){
     char cwd[MAX_LINE];
 
-    if (getcwd(cwd, sizeof(cwd))) {
+    if(getcwd(cwd, sizeof(cwd))){
         // e.g., "[/path s3]$ "
         snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd);
-    } else {
+    } 
+    else{
         // fallback
         strcpy(shell_prompt, "[s3]$ ");
     }
 }
 
 ///Prints a shell prompt and reads input from the user
-void read_command_line(char line[])
-{
+void read_command_line(char line[]){
     char shell_prompt[MAX_PROMPT_LEN];
     construct_shell_prompt(shell_prompt);
     printf("%s", shell_prompt);
 
     ///See man page of fgets(...)
-    if (fgets(line, MAX_LINE, stdin) == NULL)
-    {
+    if(fgets(line, MAX_LINE, stdin) == NULL){
         perror("fgets failed");
         exit(1);
     }
@@ -33,8 +31,7 @@ void read_command_line(char line[])
     line[strlen(line) - 1] = '\0';
 }
 
-void parse_command(char line[], char *args[], int *argsc)
-{
+void parse_command(char line[], char *args[], int *argsc){
     ///Implements simple tokenization (space delimited)
     ///Note: strtok puts '\0' (null) characters within the existing storage, 
     ///to split it into logical cstrings.
@@ -42,7 +39,7 @@ void parse_command(char line[], char *args[], int *argsc)
 
     char *token = strtok(line, " ");
     *argsc = 0;
-    while (token != NULL && *argsc < MAX_ARGS - 1)
+    while(token != NULL && *argsc < MAX_ARGS - 1)
     {
         args[(*argsc)++] = token;
         token = strtok(NULL, " ");
@@ -54,31 +51,38 @@ void parse_command(char line[], char *args[], int *argsc)
 // Assuming redirections are in the line:
 // Parse through the line 
 //Return 0 for success, -1 on error 
-int parse_redirections(char *args[], int *argsc,
-                       char **infile, char **outfile, int *append)
-{
+int parse_redirections(char *args[], int *argsc, char **infile, char **outfile, int *append){
     *infile = NULL;
     *outfile = NULL;
     *append = 0;
 
     int w = 0; // write index for compacting non-redirection args
-    for (int r = 0; r < *argsc; r++) {
-        if (strcmp(args[r], "<") == 0) {
+    for(int r = 0; r < *argsc; r++){
+        if(strcmp(args[r], "<") == 0){
             // must have a filename next
-            if (r + 1 >= *argsc) { fprintf(stderr, "syntax error: missing input file\n"); return -1; }
+            if(r + 1 >= *argsc){ 
+                fprintf(stderr, "syntax error: missing input file\n"); return -1; 
+            }
             *infile = args[r + 1];
             r++; // skip filename
-        } else if (strcmp(args[r], ">>") == 0) {
-            if (r + 1 >= *argsc) { fprintf(stderr, "syntax error: missing output file\n"); return -1; }
+        } 
+        else if(strcmp(args[r], ">>") == 0){
+            if(r + 1 >= *argsc){ 
+                fprintf(stderr, "syntax error: missing output file\n"); return -1; 
+            }
             *outfile = args[r + 1];
             *append = 1;                  // append when using >>
             r++; // skip filename
-        } else if (strcmp(args[r], ">") == 0) {
-            if (r + 1 >= *argsc) { fprintf(stderr, "syntax error: missing output file\n"); return -1; }
+        } 
+        else if(strcmp(args[r], ">") == 0){
+            if(r + 1 >= *argsc){ 
+                fprintf(stderr, "syntax error: missing output file\n"); return -1; 
+            }
             *outfile = args[r + 1];
             *append = 0;                  // overwrite for single >
             r++; // skip filename
-        } else {
+        } 
+        else{
             // keep normal argument
             args[w++] = args[r];
         }
@@ -91,8 +95,7 @@ int parse_redirections(char *args[], int *argsc,
 
 
 ///Launch related functions
-void child(char *args[], int argsc)
-{
+void child(char *args[], int argsc){
     ///Use execvp to load the binary specified in args[ARG_PROGNAME].
     execvp(args[ARG_PROGNAME], args);
     /* If execvp returns, it's an error */
@@ -101,13 +104,13 @@ void child(char *args[], int argsc)
 }
 
 
-int cd_implementation(char *args[], int argsc) {
+int cd_implementation(char *args[], int argsc){
 
     static char prev_dir[MAX_LINE] = ""; // static so persists between calls
     char cwd[MAX_LINE];
 
     //gets current working directory and stores it in cwd
-    if (!getcwd(cwd, sizeof(cwd))) {
+    if(!getcwd(cwd, sizeof(cwd))){
         perror("getcwd");
     }
 
@@ -118,35 +121,37 @@ int cd_implementation(char *args[], int argsc) {
         if (!target) target = "/" ;
     }   
 
-    else if (argsc == 2) {
-        if (strcmp(args[1], "-") == 0) {
-            if (prev_dir[0] == '\0') {
+    else if(argsc == 2){
+        if(strcmp(args[1], "-") == 0){
+            if(prev_dir[0] == '\0'){
                 fprintf(stderr, "cd: previous directory not set\n");
                 return 1;
             }
             target = prev_dir;
-        } else {
+        } 
+        else{
             target = args[1];  
         }
-    } else {
+    } 
+    else{
         fprintf(stderr, "cd: too many arguments\n");
         return 1;
     }
 
-    if (chdir(target) != 0) {
+    if(chdir(target) != 0){
         perror("cd");
         return 1;
     }
 
     // Success: update prev_dir to the directory we *came from*
-    if (cwd[0] != '\0') {
+    if(cwd[0] != '\0'){
         strncpy(prev_dir, cwd, sizeof(prev_dir));
         prev_dir[sizeof(prev_dir)-1] = '\0';
     }
 
     // Optional: if "cd -" print new cwd like bash
-    if (argsc == 2 && strcmp(args[1], "-") == 0) {
-        if (getcwd(cwd, sizeof(cwd))) {
+    if(argsc == 2 && strcmp(args[1], "-") == 0){
+        if(getcwd(cwd, sizeof(cwd))){
             printf("%s\n", cwd);
             fflush(stdout);
         }
@@ -156,15 +161,14 @@ int cd_implementation(char *args[], int argsc) {
 }
 
 
-void launch_program(char *args[], int argsc)
-{
-    if (argsc <= 0 || args[0] == NULL) return;
+void launch_program(char *args[], int argsc){
+    if(argsc <= 0 || args[0] == NULL) return;
 
     if(strcmp(args[0], "exit") == 0){
         exit(0);  
     }
 
-    if (argsc > 0 && strcmp(args[0], "cd") == 0) {
+    if(argsc > 0 && strcmp(args[0], "cd") == 0){
         cd_implementation(args, argsc);   
         return;
     }
@@ -231,55 +235,16 @@ void child_with_input_redirected(const char *filename){
     close(fd);
 }
 
-
 void child_with_redirection(char *args[], int argsc){
-    // variables to track redirection
     char *input_file = NULL;
     char *output_file = NULL;
     int append_mode = 0;
-    char *cmd_args[MAX_ARGS];
-    int cmd_argc = 0;
     
-    // collect redirection info
-    for(int i = 0; i < argsc; i++){
-        if(strcmp(args[i], "<") == 0){
-            if (i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "Error: missing filename after '<'\n");
-                exit(EXIT_FAILURE);
-            }
-            input_file = args[i + 1]; //stores file name
-            i++;  // skip filename
-            
-        } 
-        else if(strcmp(args[i], ">>") == 0){
-            if(i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "Error: missing filename after '>>'\n");
-                exit(EXIT_FAILURE);
-            }
-            output_file = args[i + 1];
-            append_mode = 1;
-            i++;
-            
-        } 
-        else if(strcmp(args[i], ">") == 0){
-            if(i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "Error: missing filename after '>'\n");
-                exit(EXIT_FAILURE);
-            }
-            output_file = args[i + 1];
-            append_mode = 0;
-            i++;
-            
-        } 
-        else{
-            cmd_args[cmd_argc++] = args[i]; //store args 
-        }
+    // Use the unified parse_redirections function
+    // It will compact args[] in-place and update argsc
+    if(parse_redirections(args, &argsc, &input_file, &output_file, &append_mode) < 0){
+        exit(EXIT_FAILURE);
     }
-    
-
-    //apply all redirections
-    // NULL-terminate the cleaned args
-    cmd_args[cmd_argc] = NULL;
     
     // Apply input redirection if specified
     if(input_file != NULL){
@@ -291,16 +256,15 @@ void child_with_redirection(char *args[], int argsc){
         child_with_output_redirected(output_file, append_mode);
     }
     
-    // Execute
-    if(cmd_args[0] == NULL){
+    // Execute (args is already compacted by parse_redirections)
+    if(args[0] == NULL){
         exit(EXIT_SUCCESS);
     }
-    if(execvp(cmd_args[0], cmd_args) < 0){
+    if(execvp(args[0], args) < 0){
         perror("execvp");
         exit(EXIT_FAILURE);
     }
 }
-
 
 int command_with_redirection(char line[]){
     return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
@@ -308,7 +272,7 @@ int command_with_redirection(char line[]){
 
 void launch_program_with_redirection(char *args[], int argsc){
     if(argsc <= 0 || args[0] == NULL) return;
-    if(strcmp(args[0], "exit") == 0) {
+    if(strcmp(args[0], "exit") == 0){
         exit(0);  
     }
 
@@ -344,7 +308,7 @@ int count_pipes(char *args[], int argsc){
     return count;
 }
 
-static int stage_is_empty(char *stagev[]) {
+static int stage_is_empty(char *stagev[]){
     return (stagev == NULL || stagev[0] == NULL);
 }
 
@@ -371,13 +335,14 @@ void execute_pipeline(char *args[], int argsc){
     int cmd_index = 0;
     int arg_index = 0;
 
-    for (int i = 0; i < argsc; i++) {
-        if (strcmp(args[i], "|") == 0) {
+    for(int i = 0; i < argsc; i++){
+        if(strcmp(args[i], "|") == 0){
             commands[cmd_index][arg_index] = NULL;
             cmd_lens[cmd_index] = arg_index;
             cmd_index++;
             arg_index = 0;
-        } else {
+        } 
+        else{
             commands[cmd_index][arg_index++] = args[i];
         }
     }
@@ -390,16 +355,16 @@ void execute_pipeline(char *args[], int argsc){
        We reuse the existing child/redirection helpers (which perform exec)
        rather than calling the higher-level launch_* functions that themselves
        fork — we are already in the per-stage child here. */
-    for (int i = 0; i < num_commands; i++) {
+    for(int i = 0; i < num_commands; i++){
         pid_t pid = fork();
-        if (pid < 0) {
+        if(pid < 0){
             perror("fork");
             exit(EXIT_FAILURE);
         }
 
-        if (pid == 0) {  /* child */
+        if(pid == 0){  /* child */
             /* If not the first command, read from previous pipe */
-            if (i > 0 && num_pipes > 0) {
+            if(i > 0 && num_pipes > 0){
                 if (dup2(pipe_fds[(i - 1) * 2], STDIN_FILENO) < 0) {
                     perror("dup2");
                     exit(EXIT_FAILURE);
@@ -407,15 +372,15 @@ void execute_pipeline(char *args[], int argsc){
             }
 
             /* If not the last command, write to next pipe */
-            if (i < num_commands - 1 && num_pipes > 0) {
-                if (dup2(pipe_fds[i * 2 + 1], STDOUT_FILENO) < 0) {
+            if(i < num_commands - 1 && num_pipes > 0){
+                if(dup2(pipe_fds[i * 2 + 1], STDOUT_FILENO) < 0){
                     perror("dup2");
                     exit(EXIT_FAILURE);
                 }
             }
 
             /* Close all pipe fds in child */
-            if (num_pipes > 0) {
+            if(num_pipes > 0){
                 for (int j = 0; j < num_pipes * 2; j++) close(pipe_fds[j]);
             }
 
@@ -426,25 +391,25 @@ void execute_pipeline(char *args[], int argsc){
             int append = 0;
             int this_argc = cmd_lens[i];
 
-            if (this_argc > 0) {
-                if (parse_redirections(commands[i], &this_argc, &infile, &outfile, &append) < 0) {
+            if(this_argc > 0){
+                if(parse_redirections(commands[i], &this_argc, &infile, &outfile, &append) < 0){
                     /* syntax error already printed by parse_redirections */
                     exit(EXIT_FAILURE);
                 }
             }
 
             /* If input redirection specified for this stage, apply it. */
-            if (infile != NULL) {
+            if(infile != NULL){
                 child_with_input_redirected(infile);
             }
 
             /* If output redirection specified for this stage, apply it. */
-            if (outfile != NULL) {
+            if(outfile != NULL){
                 child_with_output_redirected(outfile, append);
             }
 
             /* Nothing to execute? just exit child. */
-            if (commands[i][0] == NULL) {
+            if(commands[i][0] == NULL){
                 exit(EXIT_SUCCESS);
             }
 
@@ -457,12 +422,12 @@ void execute_pipeline(char *args[], int argsc){
     }
 
     /* Parent closes all pipe file descriptors */
-    if (num_pipes > 0) {
-        for (int i = 0; i < num_pipes * 2; i++) close(pipe_fds[i]);
+    if(num_pipes > 0){
+        for(int i = 0; i < num_pipes * 2; i++) close(pipe_fds[i]);
     }
 
     /* Wait for all children */
-    for (int i = 0; i < num_commands; i++) wait(NULL);
+    for(int i = 0; i < num_commands; i++) wait(NULL);
 }
 
 
@@ -480,21 +445,19 @@ void execute_batched_commands(char line[]){
     char *saveptr = NULL;
     char *command = strtok_r(line_copy, ";", &saveptr);
 
-    while (command != NULL) {
+    while(command != NULL){
         // trim leading and trailing whitespace using isspace()
-        while (*command && isspace((unsigned char)*command)) command++;
+        while(*command && isspace((unsigned char)*command)) command++;
         size_t len = strlen(command);
-        while (len > 0 && isspace((unsigned char)command[len-1])) {
+        while(len > 0 && isspace((unsigned char)command[len-1])){
             command[--len] = '\0';
         }
 
-        if (len == 0) {
+        if(len == 0){
             command = strtok_r(NULL, ";", &saveptr);
             continue; // empty command
         }
 
-        // Debug: show which sub-command we're about to run (goes to stderr)
-        fprintf(stderr, "[batch] executing: '%s'\n", command);
 
         // Parse and execute this command
         char *args[MAX_ARGS];
@@ -504,16 +467,18 @@ void execute_batched_commands(char line[]){
         cmd_copy[sizeof(cmd_copy)-1] = '\0';
 
         parse_command(cmd_copy, args, &argsc);
-        if (argsc == 0) {
+        if(argsc == 0){
             command = strtok_r(NULL, ";", &saveptr);
             continue;
         }
 
-        if (command_with_pipe(command)) {
+        if(command_with_pipe(command)){
             execute_pipeline(args, argsc);
-        } else if (command_with_redirection(command)) {
+        } 
+        else if(command_with_redirection(command)){
             launch_program_with_redirection(args, argsc);
-        } else {
+        } 
+        else{
             launch_program(args, argsc);
         }
 
