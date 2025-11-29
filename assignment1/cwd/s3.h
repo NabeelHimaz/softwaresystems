@@ -13,8 +13,6 @@
 #include <stdbool.h>
 #include <limits.h>
 
-
-
 ///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
 #define MAX_ARGS 128
@@ -29,12 +27,7 @@ enum ArgIndex
     ARG_3,
 };
 
-///With inline functions, the compiler replaces the function call 
-///with the actual function code;
-///inline improves speed and readability; meant for short functions (a few lines).
-///the static here avoids linker errors from multiple definitions (needed with inline).
-static inline void reap()
-{
+static inline void reap(){
     wait(NULL);
 }
 
@@ -62,11 +55,13 @@ int cd_implementation(char *args[], int argsc);
 int count_pipes(char *args[], int argsc);
 
 /// Checks if there's a command with a redirection/ pipes/ batched commans
-int command_with_redirection(char line[]);  // returns 1 if <, >, or >> appears
+int command_with_redirection(char line[]);  
 int command_with_pipe(char line[]);
 int has_batched_command(char line[]);
 
-
+/// Subshell support 
+int has_subshell(char line[]);
+char* extract_subshell_content(char *line, int *start_pos);
+void execute_subshell(char *subshell_content);
 
 #endif
-
