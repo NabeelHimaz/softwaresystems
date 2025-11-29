@@ -543,11 +543,13 @@ void execute_batched_commands(char line[]){
             
             parse_command(cmd_copy, args, &argsc);
             if (argsc > 0) {
-                if (command_with_pipe(command)) {
+                if(command_with_pipe(command)){
                     execute_pipeline(args, argsc);
-                } else if (command_with_redirection(command)) {
+                } 
+                else if (command_with_redirection(command)){
                     launch_program_with_redirection(args, argsc);
-                } else {
+                } 
+                else{
                     launch_program(args, argsc);
                 }
             }
