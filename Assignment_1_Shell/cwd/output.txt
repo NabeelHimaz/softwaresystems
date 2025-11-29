@@ -1,7 +1,0 @@
-output.txt
-s3
-s3.c
-s3.h
-s3main.c
-test.txt
-txt
