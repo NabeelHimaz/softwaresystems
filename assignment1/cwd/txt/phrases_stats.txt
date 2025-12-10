@@ -1,1 +1,1 @@
- 199  400 2771 txt/phrases.txt
+ 199  400 2970 txt/phrases.txt

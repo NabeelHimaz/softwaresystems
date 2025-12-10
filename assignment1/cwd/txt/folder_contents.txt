@@ -1,15 +1,23 @@
 .:
 append_test.txt
+log.txt
 output.txt
+results
 s3
 s3.c
 s3.h
 s3main.c
 sorted.txt
-test.txt
 txt
+unique.txt
+
+./results:
+rev_sort_phr.txt
 
 ./txt:
+calendar.txt
 folder_contents.txt
 phrases.txt
+phrases_reversed.txt
 phrases_sorted.txt
+phrases_stats.txt
