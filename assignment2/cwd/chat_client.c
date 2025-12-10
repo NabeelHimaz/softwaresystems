@@ -40,8 +40,8 @@ void *sender(void *arg){
             printf("Error: Failed to send message\n");
         }
         
-        // Check if quit command
-        if (strncmp(input, "disconn$", 5) == 0) {
+        // Check if disconnect command
+        if (strncmp(input, "disconn$", 8) == 0) {
             printf("Disconnecting...\n");
             active = 0;
             break;
@@ -63,8 +63,7 @@ void *listener(void *arg){
         
         if (rc <= 0) {
             if (rc < 0 && active) {
-                // Error occurred
-                usleep(100000);  // Sleep to avoid busy loop
+                usleep(100000);
             }
             continue;
         }
@@ -72,26 +71,16 @@ void *listener(void *arg){
         // Ensure null termination
         response[BUFFER_SIZE - 1] = '\0';
         
-        // Check if it's a ping
         if (strncmp(response, "ping$", 5) == 0) {
-            char ping_response[] = "ret-ping$";
-            udp_socket_write(sd, &server_addr, ping_response, BUFFER_SIZE);
+            char ping_response[BUFFER_SIZE];
+            memset(ping_response, 0, BUFFER_SIZE);
+            snprintf(ping_response, BUFFER_SIZE, "ret-ping$");
+            udp_socket_write(sd, &server_addr, ping_response, strlen(ping_response) + 1);
             continue;  // Don't display ping
         }
         
-        // Find first printable character (skip garbage bytes at start)
-        char *clean_msg = response;
-        while (*clean_msg != '\0' && (*clean_msg < 32 || *clean_msg > 126)) {
-            clean_msg++;  // Skip non-printable characters
-        }
-        
-        // Skip if message is empty after cleaning
-        if (*clean_msg == '\0') {
-            continue;
-        }
-        
-        // Display clean message
-        printf("\n%s", clean_msg);
+        // Display message
+        printf("\n%s", response);
         printf("> ");
         fflush(stdout);
         
@@ -99,7 +88,7 @@ void *listener(void *arg){
         pthread_mutex_lock(&file_mutex);
         
         if (chat_file != NULL) {
-            fprintf(chat_file, "%s", clean_msg);
+            fprintf(chat_file, "%s", response);
             fflush(chat_file);
         }
         
@@ -117,12 +106,13 @@ int main(int argc, char *argv[])
         int port_arg = atoi(argv[1]);
         if (port_arg == 6666) {
             CLIENT_PORT = port_arg;
-            printf("ADMIN client on port 6666\n");
+            printf("\n*** ADMIN MODE - Port 6666 ***\n");
         } else {
             CLIENT_PORT = port_arg;
         }
     }
     
+    // Open socket
     sd = udp_socket_open(CLIENT_PORT);
     
     if (sd < 0) {
@@ -140,6 +130,7 @@ int main(int argc, char *argv[])
     // Set server address
     int rc = set_socket_addr(&server_addr, "127.0.0.1", SERVER_PORT);
     if (rc < 0) {
+        fprintf(stderr, "Error: Failed to set server address\n");
         close(sd);
         return 1;
     }
@@ -147,11 +138,9 @@ int main(int argc, char *argv[])
     // Open chat log file
     chat_file = fopen("iChat.txt", "a");
     if (chat_file != NULL) {
-        time_t now = time(NULL);
-        fprintf(chat_file, "\nNew Chat Session Started\n");
+        fprintf(chat_file, "\n=== New Chat Session ===\n");
         fflush(chat_file);
-    } else {
-        printf("Could not open iChat.txt\n");
+        printf(" Chat log: iChat.txt\n");
     }
 
     // Create threads
@@ -171,7 +160,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Wait for sender to finish (when user quits)
+    // Wait for sender to finish
     pthread_join(sender_id, NULL);
     
     // Signal listener to stop
@@ -181,8 +170,7 @@ int main(int argc, char *argv[])
     // Close chat file
     if (chat_file != NULL) {
         pthread_mutex_lock(&file_mutex);
-        time_t now = time(NULL);
-        fprintf(chat_file, "Chat Session Ended\n\n");
+        fprintf(chat_file, "=== Chat Session Ended ===\n\n");
         fclose(chat_file);
         chat_file = NULL;
         pthread_mutex_unlock(&file_mutex);
@@ -192,7 +180,7 @@ int main(int argc, char *argv[])
     close(sd);
     pthread_mutex_destroy(&file_mutex);
     
-    printf("Client terminated.\n");
+    printf("\nClient terminated.\n");
 
     return 0;
 }
