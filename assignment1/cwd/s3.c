@@ -46,27 +46,15 @@ int parse_redirections(char *args[], int *argsc, char **infile, char **outfile, 
     int w = 0; 
     for (int r = 0; r < *argsc; r++){
         if(strcmp(args[r], "<") == 0){
-            if(r + 1 >= *argsc){ 
-                fprintf(stderr, "syntax error: missing input file\n"); 
-                return -1; 
-            }
             *infile = args[r + 1];
             r++;
         } 
         else if(strcmp(args[r], ">>") == 0){
-            if(r + 1 >= *argsc){ 
-                fprintf(stderr, "syntax error: missing output file\n"); 
-                return -1; 
-            }
             *outfile = args[r + 1];
             *append = 1;       
             r++; 
         } 
         else if(strcmp(args[r], ">") == 0){
-            if(r + 1 >= *argsc){ 
-                fprintf(stderr, "syntax error: missing output file\n"); 
-                return -1; 
-            }
             *outfile = args[r + 1];
             *append = 0;            
             r++;
@@ -105,7 +93,7 @@ int cd_implementation(char *args[], int argsc){
     else if(argsc == 2){
         if(strcmp(args[1], "-") == 0){
             if(prev_dir[0] == '\0'){
-                fprintf(stderr, "cd: previous directory not set\n");
+                fprintf(stderr, "error\n");
                 return 1;
             }
             target = prev_dir;
@@ -115,7 +103,7 @@ int cd_implementation(char *args[], int argsc){
         }
     } 
     else{
-        fprintf(stderr, "cd: too many arguments\n");
+        fprintf(stderr, "error\n");
         return 1;
     }
     if(chdir(target) != 0){
@@ -213,27 +201,15 @@ void child_with_redirection(char *args[], int argsc){
 
     for(int i = 0; i < argsc; i++){
         if(strcmp(args[i], "<") == 0){
-            if (i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "missing filename after '<'\n");
-                exit(EXIT_FAILURE);
-            }
             input_file = args[i + 1]; 
             i++;  
         } 
         else if(strcmp(args[i], ">>") == 0){
-            if(i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "missing filename after '>>'\n");
-                exit(EXIT_FAILURE);
-            }
             output_file = args[i + 1];
             append_mode = 1;
             i++;
         } 
         else if(strcmp(args[i], ">") == 0){
-            if(i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "missing filename after '>'\n");
-                exit(EXIT_FAILURE);
-            }
             output_file = args[i + 1];
             append_mode = 0;
             i++;
@@ -575,11 +551,11 @@ char* extract_subshell_content(char *line, int *start_pos){
 void execute_subshell(char *subshell_content){
     pid_t pid = fork();
     
-    if (pid < 0){
+    if(pid < 0){
         perror("fork");
         return;
     }
-    if (pid == 0){
+    if(pid == 0){
         execlp("./s3", "s3", "-c", subshell_content, (char*)NULL);
         execlp("s3", "s3", "-c", subshell_content, (char*)NULL);
         perror("execlp failed to launch subshell");
