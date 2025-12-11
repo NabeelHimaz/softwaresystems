@@ -13,15 +13,14 @@ void process_command_line(char *line){
         execute_pipeline(args, argsc);
     }
     else if(command_with_redirection(line)){
-       parse_command(line, args, &argsc);
-       launch_program_with_redirection(args, argsc);
-   }
-   else{
-       parse_command(line, args, &argsc);
-       launch_program(args, argsc);
-   }
+        parse_command(line, args, &argsc);
+        launch_program_with_redirection(args, argsc);
+    }
+    else{
+        parse_command(line, args, &argsc);
+        launch_program(args, argsc);
+    }
 }
-
 
 void process_line_with_subshells(char *line){
     int pos = 0;
@@ -36,13 +35,11 @@ void process_line_with_subshells(char *line){
 
             while (line[pos] && isspace((unsigned char)line[pos])) pos++;
             if(line[pos] != '\0'){
-                fprintf(stderr, "Warning: Content after subshell may not execute correctly\n");
-                fprintf(stderr, "Remaining: '%s'\n", line + pos);
+                fprintf(stderr, "cannot handle this command\n");
             }
             return;
         }
     }
-    
     process_command_line(line);
 }
 
@@ -65,6 +62,5 @@ int main(int argc, char *argv[]){
         }
         process_command_line(line);
     }
-
     return 0;
 }

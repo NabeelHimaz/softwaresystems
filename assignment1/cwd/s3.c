@@ -1,5 +1,4 @@
 #include "s3.h"
-#include "s3.h"
 #include <ctype.h>
 
 void construct_shell_prompt(char shell_prompt[]){
@@ -10,7 +9,6 @@ void construct_shell_prompt(char shell_prompt[]){
         snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd);
     } 
     else{
-
         strcpy(shell_prompt, "[s3]$ ");
     }
 }
@@ -21,7 +19,6 @@ void read_command_line(char line[]){
     printf("%s", shell_prompt);
 
     if(fgets(line, MAX_LINE, stdin) == NULL){
-
         if(feof(stdin)){
             exit(0);
         }
@@ -47,7 +44,7 @@ int parse_redirections(char *args[], int *argsc, char **infile, char **outfile, 
     *append = 0;
 
     int w = 0; 
-    for (int r = 0; r < *argsc; r++) {
+    for (int r = 0; r < *argsc; r++){
         if(strcmp(args[r], "<") == 0){
             if(r + 1 >= *argsc){ 
                 fprintf(stderr, "syntax error: missing input file\n"); 
@@ -83,15 +80,14 @@ int parse_redirections(char *args[], int *argsc, char **infile, char **outfile, 
     return 0;
 }
 
-void child(char *args[], int argsc)
-{
+void child(char *args[], int argsc){
     execvp(args[ARG_PROGNAME], args);
     perror("execvp");
     exit(EXIT_FAILURE);
 }
 
 
-int cd_implementation(char *args[], int argsc) {
+int cd_implementation(char *args[], int argsc){
 
     static char prev_dir[MAX_LINE] = ""; 
     char cwd[MAX_LINE];
@@ -106,7 +102,6 @@ int cd_implementation(char *args[], int argsc) {
         target = getenv("HOME");
         if (!target) target = "/" ;
     }   
-
     else if(argsc == 2){
         if(strcmp(args[1], "-") == 0){
             if(prev_dir[0] == '\0'){
@@ -123,36 +118,31 @@ int cd_implementation(char *args[], int argsc) {
         fprintf(stderr, "cd: too many arguments\n");
         return 1;
     }
-
     if(chdir(target) != 0){
         perror("cd");
         return 1;
     }
-
     if(cwd[0] != '\0'){
         strncpy(prev_dir, cwd, sizeof(prev_dir));
         prev_dir[sizeof(prev_dir)-1] = '\0';
     }
-
     if(argsc == 2 && strcmp(args[1], "-") == 0){
         if (getcwd(cwd, sizeof(cwd))) {
             printf("%s\n", cwd);
             fflush(stdout);
         }
     }
-
     return 0;
 }
 
 
-void launch_program(char *args[], int argsc)
-{
-    if(argsc <= 0 || args[0] == NULL) return;
-
+void launch_program(char *args[], int argsc){
+    if(argsc <= 0 || args[0] == NULL){
+        return;
+    }
     if(strcmp(args[0], "exit") == 0){
         exit(0);  
     }
-
     if (argsc > 0 && strcmp(args[0], "cd") == 0){
         cd_implementation(args, argsc);   
         return;
@@ -189,13 +179,11 @@ void child_with_output_redirected(const char *filename, int append){
         perror("open");
         exit(EXIT_FAILURE);
     }
-    
     if(dup2(fd, STDOUT_FILENO) < 0){
         perror("dup2");
         close(fd);
         exit(EXIT_FAILURE);
     }
-    
     close(fd);
 }
 
@@ -207,13 +195,11 @@ void child_with_input_redirected(const char *filename){
         perror("open");
         exit(EXIT_FAILURE);
     }
-    
     if(dup2(fd, STDIN_FILENO) < 0){ 
         perror("dup2");
         close(fd);
         exit(EXIT_FAILURE);
     }
-    
     close(fd);
 }
 
@@ -228,35 +214,32 @@ void child_with_redirection(char *args[], int argsc){
     for(int i = 0; i < argsc; i++){
         if(strcmp(args[i], "<") == 0){
             if (i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "Error: missing filename after '<'\n");
+                fprintf(stderr, "missing filename after '<'\n");
                 exit(EXIT_FAILURE);
             }
             input_file = args[i + 1]; 
             i++;  
-            
         } 
         else if(strcmp(args[i], ">>") == 0){
             if(i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "Error: missing filename after '>>'\n");
+                fprintf(stderr, "missing filename after '>>'\n");
                 exit(EXIT_FAILURE);
             }
             output_file = args[i + 1];
             append_mode = 1;
             i++;
-            
         } 
         else if(strcmp(args[i], ">") == 0){
             if(i + 1 >= argsc || args[i + 1] == NULL){
-                fprintf(stderr, "Error: missing filename after '>'\n");
+                fprintf(stderr, "missing filename after '>'\n");
                 exit(EXIT_FAILURE);
             }
             output_file = args[i + 1];
             append_mode = 0;
             i++;
-            
         } 
         else{
-            cmd_args[cmd_argc++] = args[i]; //store args 
+            cmd_args[cmd_argc++] = args[i]; 
         }
     }
     
@@ -265,11 +248,9 @@ void child_with_redirection(char *args[], int argsc){
     if(input_file != NULL){
         child_with_input_redirected(input_file);
     }
-
     if(output_file != NULL){
         child_with_output_redirected(output_file, append_mode);
     }
-    
     if(cmd_args[0] == NULL){
         exit(EXIT_SUCCESS);
     }
@@ -279,14 +260,15 @@ void child_with_redirection(char *args[], int argsc){
     }
 }
 
-
 int command_with_redirection(char line[]){
     return(strstr(line, ">") != NULL || strstr(line, "<") != NULL);
 }
 
 void launch_program_with_redirection(char *args[], int argsc){
-    if(argsc <= 0 || args[0] == NULL) return;
-    if(strcmp(args[0], "exit") == 0) {
+    if(argsc <= 0 || args[0] == NULL){
+        return;
+    }
+    if(strcmp(args[0], "exit") == 0){
         exit(0);  
     }
 
@@ -305,14 +287,13 @@ void launch_program_with_redirection(char *args[], int argsc){
     }
 }
 
-
 int command_with_pipe(char line[]){
     return (strchr(line, '|') != NULL);
 }
 
 int count_pipes(char *args[], int argsc){
-    
     int count = 0;
+
     for(int i=0; i < argsc; i++){
         if(strcmp(args[i], "|") == 0){
             count ++;
@@ -324,7 +305,6 @@ int count_pipes(char *args[], int argsc){
 static int stage_is_empty(char *stagev[]){
     return (stagev == NULL || stagev[0] == NULL);
 }
-
 
 void execute_pipeline(char *args[], int argsc){
     int num_pipes = count_pipes(args, argsc);
@@ -366,7 +346,6 @@ void execute_pipeline(char *args[], int argsc){
             perror("fork");
             exit(EXIT_FAILURE);
         }
-
         if(pid == 0){  
             if(i > 0 && num_pipes > 0){
                 if(dup2(pipe_fds[(i - 1) * 2], STDIN_FILENO) < 0){
@@ -374,14 +353,12 @@ void execute_pipeline(char *args[], int argsc){
                     exit(EXIT_FAILURE);
                 }
             }
-
             if(i < num_commands - 1 && num_pipes > 0){
                 if(dup2(pipe_fds[i * 2 + 1], STDOUT_FILENO) < 0){
                     perror("dup2");
                     exit(EXIT_FAILURE);
                 }
             }
-
             if(num_pipes > 0){
                 for (int j = 0; j < num_pipes * 2; j++) close(pipe_fds[j]);
             }
@@ -396,15 +373,12 @@ void execute_pipeline(char *args[], int argsc){
                     exit(EXIT_FAILURE);
                 }
             }
-
-            if (infile != NULL) {
+            if (infile != NULL){
                 child_with_input_redirected(infile);
             }
-
             if(outfile != NULL){
                 child_with_output_redirected(outfile, append);
             }
-
             if(commands[i][0] == NULL){
                 exit(EXIT_SUCCESS);
             }
@@ -418,8 +392,9 @@ void execute_pipeline(char *args[], int argsc){
     if(num_pipes > 0){
         for (int i = 0; i < num_pipes * 2; i++) close(pipe_fds[i]);
     }
-
-    for(int i = 0; i < num_commands; i++) wait(NULL);
+    for(int i = 0; i < num_commands; i++){
+        wait(NULL);
+    }
 }
 
 int has_batched_command(char line[]){
@@ -459,7 +434,6 @@ void execute_batched_commands(char line[]){
             line_copy[i] = '\0'; 
             char *command = line_copy + start;
             
-            // Trim whitespace
             while(*command && isspace((unsigned char)*command)) command++;
             size_t len = strlen(command);
             while(len > 0 && isspace((unsigned char)command[len-1])){
@@ -482,7 +456,6 @@ void execute_batched_commands(char line[]){
                     }
                 }
                 
-                // Parse and execute this command
                 char *args[MAX_ARGS];
                 int argsc;
                 char cmd_copy[MAX_LINE];
@@ -507,19 +480,16 @@ void execute_batched_commands(char line[]){
         }
     }
     
-    // Handle the last command (after the last semicolon or if there's no semicolon)
     if(start < original_len){
         char *command = line_copy + start;
         
-        // Trim whitespace
         while(*command && isspace((unsigned char)*command)) command++;
         size_t len = strlen(command);
         while(len > 0 && isspace((unsigned char)command[len-1])){
             command[--len] = '\0';
         }
         
-        if (len > 0) {
-            
+        if(len > 0){
             if(has_subshell(command)){
                 int pos = 0;
                 while (command[pos] && isspace((unsigned char)command[pos])) pos++;
@@ -534,7 +504,6 @@ void execute_batched_commands(char line[]){
                 }
             }
             
-            // Parse and execute this command
             char *args[MAX_ARGS];
             int argsc;
             char cmd_copy[MAX_LINE];
@@ -542,11 +511,11 @@ void execute_batched_commands(char line[]){
             cmd_copy[sizeof(cmd_copy)-1] = '\0';
             
             parse_command(cmd_copy, args, &argsc);
-            if (argsc > 0) {
+            if (argsc > 0){
                 if(command_with_pipe(command)){
                     execute_pipeline(args, argsc);
                 } 
-                else if (command_with_redirection(command)){
+                else if(command_with_redirection(command)){
                     launch_program_with_redirection(args, argsc);
                 } 
                 else{
@@ -557,8 +526,6 @@ void execute_batched_commands(char line[]){
     }
 }
 
-//PE1
-
 int has_subshell(char line[]){
     return (strchr(line, '(') != NULL && strchr(line, ')') != NULL);
 }
@@ -566,14 +533,13 @@ int has_subshell(char line[]){
 char* extract_subshell_content(char *line, int *start_pos){
     int i = *start_pos;
     
-    // Skip whitespace to find opening parenthesis
     while (line[i] && isspace((unsigned char)line[i])) i++;
     
     if(line[i] != '('){
-        return NULL;  // No subshell at this position
+        return NULL; 
     }
     
-    i++; // Skip opening parenthesis
+    i++; 
     int depth = 1;
     int content_start = i;
     
@@ -588,7 +554,7 @@ char* extract_subshell_content(char *line, int *start_pos){
     }
     
     if(depth != 0){
-        fprintf(stderr, "Error: Unmatched parentheses in subshell\n");
+        fprintf(stderr, "check syntax\n");
         return NULL;
     }
     
@@ -603,7 +569,6 @@ char* extract_subshell_content(char *line, int *start_pos){
     content[content_len] = '\0';
     
     *start_pos = i + 1; 
-    
     return content;
 }
 
@@ -614,7 +579,6 @@ void execute_subshell(char *subshell_content){
         perror("fork");
         return;
     }
-    
     if (pid == 0){
         execlp("./s3", "s3", "-c", subshell_content, (char*)NULL);
         execlp("s3", "s3", "-c", subshell_content, (char*)NULL);

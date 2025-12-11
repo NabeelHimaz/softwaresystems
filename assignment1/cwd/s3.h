@@ -1,7 +1,6 @@
 #ifndef _S3_H_
-#define _S3_H_
-//TEST CHANGE
-///See reference for what these libraries provide
+#define _S3_H_ 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,23 +12,17 @@
 #include <stdbool.h>
 #include <limits.h>
 
-///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
 #define MAX_ARGS 128
 #define MAX_PROMPT_LEN 256
 
-///Enum for readable argument indices (use where required)
-enum ArgIndex
-{
+
+enum ArgIndex{
     ARG_PROGNAME,
     ARG_1,
     ARG_2,
     ARG_3,
 };
-
-static inline void reap(){
-    wait(NULL);
-}
 
 ///Shell I/O and related functions (add more as appropriate)
 void read_command_line(char line[]);
