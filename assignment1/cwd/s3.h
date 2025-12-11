@@ -47,12 +47,12 @@ int cd_implementation(char *args[], int argsc);
 //helper for pipes
 int count_pipes(char *args[], int argsc);
 
-/// Checks if there's a command with a redirection/ pipes/ batched commans
+//Checks if there's a command with a redirection/pipes/batched commans
 int command_with_redirection(char line[]);  
 int command_with_pipe(char line[]);
 int has_batched_command(char line[]);
 
-/// Subshell support 
+//Subshells
 int has_subshell(char line[]);
 char* extract_subshell_content(char *line, int *start_pos);
 void execute_subshell(char *subshell_content);
